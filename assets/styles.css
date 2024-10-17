@@ -1,0 +1,321 @@
+/* Define colors as variables */
+:root {
+  --start: lightgreen;
+  --goal: lightsalmon;
+  --path: pink;
+  --wall: rgba(0, 0, 0, 0.8);
+  --road: rgba(120, 120, 120, 0.5);
+  --forest: rgb(99, 161, 99, .5);
+  --mountain: #FFFAFA;
+}
+
+body {
+  background-color: #F7F5EB;
+  color: #313131;
+  font-family: 'Roboto', sans-serif;
+  display: grid;
+  grid-template-areas:
+    'header header'
+    'content aside'
+    'footer footer';
+  gap: 40px;
+  padding: 0px 40px 40px;
+  grid-template-columns: 1fr fit-content(35%);
+  overflow: auto;
+
+  @media (max-width: 768px) {
+    grid-template-areas:
+      'header'
+      'aside'
+      'content'
+      'footer';
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+}
+
+#statsDiv p {
+  font-size: 12px;
+  margin: 0;
+  padding: 0 10px;
+}
+
+header {
+  grid-area: header;
+  border-bottom: 2px solid #EAE0DA;
+  text-align: center;
+}
+
+section.content {
+  grid-area: content;
+  padding: 20px;
+  border-radius: 15px;
+
+  @media (max-width: 768px) {
+    padding: 0;
+  }
+}
+
+article {
+  padding-bottom: 40px;
+}
+
+aside {
+  grid-area: aside;
+  background-color: #EAE0DA;
+  padding: 20px;
+  border-radius: 15px;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    max-width: fit-content;
+  }
+
+  & > * {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px ;
+  }
+}
+
+footer {
+  grid-area: footer;
+  border-top: 2px solid #EAE0DA;
+  padding-top: 40px;
+}
+
+.legend {
+  ul {
+    margin: auto;
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  
+    li {
+      margin: 5px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 12px;
+      min-width: 50px;
+  
+      span {
+        display: block;
+        width: 10px;
+        height: 10px;
+        background-color: #F7F5EB;
+        margin-top: 5px;
+
+        &.wall {
+          background-color: var(--wall);
+        }
+
+        &.start {
+          background-color: var(--start);
+          border-radius: 15px;
+        }
+
+        &.goal {
+          background-color: var(--goal);
+          border-radius: 15px;
+        }
+
+        &.path {
+          background-color: var(--path);
+          border-radius: 15px;
+        }
+
+        &.road {
+          background-color: var(--road);
+        }
+
+        &.forest {
+          background-color: var(--forest);
+        }
+
+        &.mountain {
+          background-color: var(--mountain);
+        }
+      }
+    }
+  }
+}
+
+#stats {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 20px;
+}
+
+button,
+input,
+label {
+  margin: 5px;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+label input {
+  max-width: 30px;
+}
+
+.controls ul {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0;
+  margin-top: 0;
+}
+
+.controls input[type=number] {
+  width: 50px;
+}
+
+.controls label {
+  display: flex;
+  align-items: center;
+}
+
+.controls label div {
+  font-size: 12px;
+  margin-right: 5px;
+}
+
+.controls input {
+  margin-bottom: 5px;
+}
+
+.controls label input {
+  margin-right: 5px;
+}
+
+#grid-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.grid {
+  margin: 1em auto;
+  border-collapse: collapse;
+}
+
+.grid td {
+  cursor: pointer;
+  width: 60px;
+  height: 60px;
+  user-select: none;
+  border: 5px solid darkgrey;
+  padding: 5px;
+}
+
+.grid td div {
+  text-align: center;
+  font-family: sans-serif;
+  font-size: 11px;
+  border-radius: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  pointer-events: none;
+}
+
+.grid td:hover {
+  opacity: .6;
+  user-select: none;
+}
+
+.grid td.wall ,
+.grid td[data-wall="true"]   {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  color: rgb(164, 163, 163);
+}
+
+.grid td.root div,
+.grid td[data-start="true"] div,
+.grid td.root div,
+.grid td[data-root="true"] div {
+  background-color: var(--start) !important;
+  color: white;
+}
+
+.grid td.goal div ,
+.grid td[data-goal="true"] div  {
+  background-color: var(--goal) !important;
+  color: white;
+}
+
+.grid td.path:not(.root):not(.goal):not(.wall) div,
+.grid td[data-path="true"]:not(.root):not(.goal):not(.wall) div {
+  background-color: var(--path) !important;
+  background-size: 50% 50%;
+  color: rgb(129, 125, 125);
+  opacity: 1 !important;
+  animation: pulse 1s infinite;
+}
+
+.grid td[notwalkable]:not(.root):not(.goal):not(.path) {
+  background-color: black !important;
+  color: white !important;
+}
+
+.grid td.visited:not(.root):not(.goal):not(.path) {
+  opacity: .3;
+}
+
+/* roads */
+td[data-cost="2"],
+td[data-cost="3"],
+td[data-cost="4"],
+td[data-cost="5"],
+td[data-cost="6"],
+td[data-cost="7"] {
+  background-color: var(--road);
+
+  div {
+    color: #f1eded;
+  }
+}
+
+/* forests */
+td[data-cost="8"],
+td[data-cost="9"],
+td[data-cost="10"],
+td[data-cost="11"],
+td[data-cost="12"],
+td[data-cost="13"],
+td[data-cost="14"]
+{
+  background-color: var(--forest);
+
+  div {
+    color: #349a30;
+  }
+}
+
+/* mountains */
+td[data-cost="15"],
+td[data-cost="16"],
+td[data-cost="17"],
+td[data-cost="18"],
+td[data-cost="19"],
+td[data-cost="20"]
+{
+  background-color: var(--mountain);
+  
+  div {
+    color: #a3a4a3;
+  }
+}
