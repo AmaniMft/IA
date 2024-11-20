@@ -1,0 +1,16 @@
+{
+  "name": "ia",
+  "version": "1.0.0",
+  "description": "Jeu de dames avec IA",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "start": "node src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
