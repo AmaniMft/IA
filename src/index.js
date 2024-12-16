@@ -1,4 +1,4 @@
-// src/index.js
+
 const Plateau = require('./game/Plateau');
 
 // Crée un nouveau plateau
