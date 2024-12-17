@@ -2,16 +2,22 @@
 const Plateau = require('../game/Plateau');
 
 function evaluation(plateau) {
-    // Fonction heuristique simple : différence du nombre de pions
     let noirs = 0, blancs = 0;
-    for (let ligne of plateau.plateau) {
-        for (let caseJeu of ligne) {
-            if (caseJeu === 1) noirs++; // Pions noirs
-            else if (caseJeu === 2) blancs++; // Pions blancs
+    for (let ligne = 0; ligne < plateau.TAILLE_PLATEAU; ligne++) {
+        for (let colonne = 0; colonne < plateau.TAILLE_PLATEAU; colonne++) {
+            const caseJeu = plateau.plateau[ligne][colonne];
+            if (caseJeu === 1) {
+                // Pion noir - ajoute un score en fonction de la position
+                noirs += 1 + (ligne / plateau.TAILLE_PLATEAU); // Bonus pour les pions avancés
+            } else if (caseJeu === 2) {
+                // Pion blanc - ajoute un score en fonction de la position
+                blancs += 1 + ((plateau.TAILLE_PLATEAU - 1 - ligne) / plateau.TAILLE_PLATEAU);
+            }
         }
     }
-    return noirs - blancs; // Plus la valeur est élevée, mieux c'est pour les noirs
+    return noirs - blancs; // Plus le score est élevé, plus les noirs dominent
 }
+
 
 function minimax(plateau, profondeur, joueurMaximisant) {
     if (profondeur === 0) {

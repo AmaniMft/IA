@@ -37,6 +37,13 @@ class Plateau {
 
     }
 
+    copier() {
+        const nouveauPlateau = new Plateau();
+        nouveauPlateau.plateau = this.plateau.map(row => [...row]);
+        return nouveauPlateau;
+    }
+    
+
     getMouvementsValides(ligne, colonne) {
         const mouvements = [];
         const piece = this.plateau[ligne][colonne];
@@ -71,6 +78,20 @@ class Plateau {
             ligne === arrivee[0] && colonne === arrivee[1]
         );
     }
+
+    getMouvementsTous(joueur) {
+        const mouvements = [];
+        for (let ligne = 0; ligne < this.TAILLE_PLATEAU; ligne++) {
+            for (let colonne = 0; colonne < this.TAILLE_PLATEAU; colonne++) {
+                if (this.plateau[ligne][colonne] === joueur) {
+                    const valides = this.getMouvementsValides(ligne, colonne);
+                    valides.forEach(m => mouvements.push([[ligne, colonne], m]));
+                }
+            }
+        }
+        return mouvements;
+    }
+    
 
     deplacerPiece(depart, arrivee) {
         if (!this.estMouvementValide(depart, arrivee)) {
