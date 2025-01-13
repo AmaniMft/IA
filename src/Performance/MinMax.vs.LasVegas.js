@@ -36,10 +36,10 @@ function jouerPartie(profondeur = 3) {
     while (true) {
         const mouvements = plateau.getMouvementsTous(joueur);
         if (mouvements.length === 0) {
-            return joueur === 1 ? 'Las Vegas' : 'Minimax'; // Le joueur bloqué perd
+            return joueur === 1 ? 'Las Vegas' : 'Minmax'; // Le joueur bloqué perd
         }
 
-        const algo = joueur === 1 ? 'minimax' : 'lasvegas';
+        const algo = joueur === 1 ? 'minmax' : 'lasvegas';
         const mouvement = jouerIA(plateau, joueur, algo, profondeur);
 
         if (mouvement) plateau.deplacerPiece(mouvement[0], mouvement[1]);
@@ -57,7 +57,7 @@ function testerPerformances(nbParties = 1000, profondeur = 3) {
     let egalites = 0;
     let tempsTotal = 0;
 
-    console.log(`\n--- Test : Minimax vs Las Vegas sur ${nbParties} parties ---\n`);
+    console.log(`\n--- Test : Minmax vs Las Vegas sur ${nbParties} parties ---\n`);
 
     for (let i = 0; i < nbParties; i++) {
         const debut = performance.now();
@@ -66,7 +66,7 @@ function testerPerformances(nbParties = 1000, profondeur = 3) {
 
         tempsTotal += (fin - debut);
 
-        if (resultat === 'Minimax') victoiresMinimax++;
+        if (resultat === 'Minmax') victoiresMinimax++;
         else if (resultat === 'Las Vegas') victoiresLasVegas++;
         else egalites++;
 
@@ -76,7 +76,7 @@ function testerPerformances(nbParties = 1000, profondeur = 3) {
     }
 
     console.log(`\n--- Résultats ---`);
-    console.log(`Victoires Minimax    : ${victoiresMinimax}`);
+    console.log(`Victoires Minmax    : ${victoiresMinimax}`);
     console.log(`Victoires Las Vegas  : ${victoiresLasVegas}`);
     console.log(`Égalités             : ${egalites}`);
     console.log(`Temps total          : ${(tempsTotal / 1000).toFixed(2)} secondes`);
