@@ -1,93 +1,45 @@
+// main.js
 const Plateau = require('../src/game/Plateau');
-const { minimax } = require('../src/ai/MinMax');
-const { alphaBeta } = require('../src/ai/AlphaBeta');
+const JouerAleatoire = require('../src/game/JoeurAleatoire');
 
-// Fonction pour jouer un tour avec un algorithme spécifique
-function jouerTour(plateau, joueur, algo, profondeur) {
-    const mouvements = [];
-    for (let ligne = 0; ligne < plateau.TAILLE_PLATEAU; ligne++) {
-        for (let colonne = 0; colonne < plateau.TAILLE_PLATEAU; colonne++) {
-            if (plateau.plateau[ligne][colonne] === joueur) {
-                const valides = plateau.getMouvementsValides(ligne, colonne);
-                valides.forEach(m => mouvements.push([[ligne, colonne], m]));
-            }
-        }
-    }
+// Vérification des méthodes disponibles sur Plateau
+const plateau = new Plateau();
+console.log("Méthodes disponibles sur l'objet Plateau :", Object.keys(plateau));
 
+// Fonction pour jouer un tour avec un joueur aléatoire
+function jouerTour(plateau, joueur) {
+    const mouvements = plateau.getMouvementsTous(joueur); // Vérifiez que cette méthode existe
     if (mouvements.length === 0) return null; // Aucun mouvement possible
 
-    let meilleurMouvement = null;
-
-    // Sélectionne le meilleur mouvement selon l'algorithme
-    if (algo === 'minimax') {
-        let meilleurScore = joueur === 1 ? -Infinity : Infinity;
-
-        for (let mouvement of mouvements) {
-            const copiePlateau = plateau.copier();
-            copiePlateau.deplacerPiece(mouvement[0], mouvement[1]);
-            const score = minimax(copiePlateau, profondeur, joueur === 2);
-
-            if (joueur === 1 && score > meilleurScore) {
-                meilleurScore = score;
-                meilleurMouvement = mouvement;
-            } else if (joueur === 2 && score < meilleurScore) {
-                meilleurScore = score;
-                meilleurMouvement = mouvement;
-            }
-        }
-    } else if (algo === 'alphabeta') {
-        let meilleurScore = joueur === 1 ? -Infinity : Infinity;
-
-        for (let mouvement of mouvements) {
-            const copiePlateau = plateau.copier();
-            copiePlateau.deplacerPiece(mouvement[0], mouvement[1]);
-            const score = alphaBeta(copiePlateau, profondeur, -Infinity, Infinity, joueur === 2);
-
-            if (joueur === 1 && score > meilleurScore) {
-                meilleurScore = score;
-                meilleurMouvement = mouvement;
-            } else if (joueur === 2 && score < meilleurScore) {
-                meilleurScore = score;
-                meilleurMouvement = mouvement;
-            }
-        }
-    }
-
-    return meilleurMouvement;
+    // Sélectionner un mouvement aléatoire
+    const choix = Math.floor(Math.random() * mouvements.length);
+    return mouvements[choix];
 }
 
-// Fonction principale pour l'IA contre IA
-function iaContreIa() {
-    const plateau = new Plateau();
+// Fonction principale : Joueur Aléatoire contre Joueur Aléatoire
+function aleatoireVsAleatoire() {
     let tour = 1;
+    let joueur = 1; // 1 pour Noir, 2 pour Blanc
 
-    console.log("Début de la partie : IA contre IA !");
+    console.log("Début de la partie : Joueur Aléatoire contre Joueur Aléatoire !");
     plateau.afficherPlateau();
 
     while (true) {
-        console.log(`\n=== Tour ${tour} : IA Noirs (Joueur 1) ===`);
-        let mouvementNoirs = jouerTour(plateau, 1, 'minimax', 3);
-        if (mouvementNoirs) {
-            plateau.deplacerPiece(mouvementNoirs[0], mouvementNoirs[1]);
-            console.log(`IA Noirs joue : de ${mouvementNoirs[0]} vers ${mouvementNoirs[1]}`);
+        console.log(`\n=== Tour ${tour} : Joueur ${joueur === 1 ? 'Noirs' : 'Blancs'} ===`);
+        const mouvement = jouerTour(plateau, joueur);
+
+        if (mouvement) {
+            plateau.deplacerPiece(mouvement[0], mouvement[1]);
+            console.log(`Joueur ${joueur === 1 ? 'Noirs' : 'Blancs'} joue : de ${mouvement[0]} à ${mouvement[1]}`);
             plateau.afficherPlateau();
         } else {
-            console.log("IA Noirs ne peut plus jouer. IA Blancs gagne !");
+            console.log(`Joueur ${joueur === 1 ? 'Noirs' : 'Blancs'} ne peut plus jouer. Joueur ${joueur === 2 ? 'Noirs' : 'Blancs'} gagne !`);
             break;
         }
 
-        console.log(`\n=== Tour ${tour} : IA Blancs (Joueur 2) ===`);
-        let mouvementBlancs = jouerTour(plateau, 2, 'alphabeta', 3);
-        if (mouvementBlancs) {
-            plateau.deplacerPiece(mouvementBlancs[0], mouvementBlancs[1]);
-            console.log(`IA Blancs joue : de ${mouvementBlancs[0]} vers ${mouvementBlancs[1]}`);
-            plateau.afficherPlateau();
-        } else {
-            console.log("IA Blancs ne peut plus jouer. IA Noirs gagne !");
-            break;
-        }
-
+        joueur = joueur === 1 ? 2 : 1; // Alterner les joueurs
         tour++;
+
         if (tour > 100) {
             console.log("Partie terminée : Limite de tours atteinte.");
             break;
@@ -97,4 +49,5 @@ function iaContreIa() {
     console.log("Fin de la partie.");
 }
 
-iaContreIa();
+// Lancer le test
+aleatoireVsAleatoire();

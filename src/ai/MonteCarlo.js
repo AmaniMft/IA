@@ -1,88 +1,129 @@
-const Plateau = require('../game/Plateau');
+const BaseAI = require('./BaseAI');
 
-function evaluation(plateau) {
-    let noirs = 0, blancs = 0;
-    for (let ligne = 0; ligne < plateau.TAILLE_PLATEAU; ligne++) {
-        for (let colonne = 0; colonne < plateau.TAILLE_PLATEAU; colonne++) {
-            const caseJeu = plateau.plateau[ligne][colonne];
-            if (caseJeu === 1) {
-                // Pion noir - ajoute un score en fonction de la position
-                noirs += 1 + (ligne / plateau.TAILLE_PLATEAU); // Bonus pour les pions avancés
-            } else if (caseJeu === 2) {
-                // Pion blanc - ajoute un score en fonction de la position
-                blancs += 1 + ((plateau.TAILLE_PLATEAU - 1 - ligne) / plateau.TAILLE_PLATEAU);
-            }
-        }
+class Node {
+    constructor(move = null, parent = null) {
+        this.move = move;
+        this.parent = parent;
+        this.children = [];
+        this.wins = 0;
+        this.visits = 0;
+        this.untriedMoves = [];
     }
-    return noirs - blancs; // Plus le score est élevé, plus les noirs dominent
+
+    // Sélection du meilleur enfant selon UCB1
+    getBestChild(explorationConstant) {
+        return this.children.reduce((best, child) => {
+            const ucb1 = (child.wins / child.visits) + 
+                        explorationConstant * Math.sqrt(Math.log(this.visits) / child.visits);
+            return ucb1 > best.score ? { node: child, score: ucb1 } : best;
+        }, { node: null, score: Number.NEGATIVE_INFINITY }).node;
+    }
+
+    // Ajout d'un enfant
+    addChild(move) {
+        const child = new Node(move, this);
+        this.children.push(child);
+        return child;
+    }
 }
 
+class MonteCarlo extends BaseAI {
+    constructor(maxDepth = 3, heuristicFn = null) {
+        super(maxDepth, heuristicFn);
+        this.maxIterations = 1000;
+        this.explorationConstant = Math.sqrt(2);
+    }
 
-function jouerPartieAleatoire(plateau, joueurMaximisant) {
-    const copiePlateau = new Plateau();
-    copiePlateau.plateau = plateau.plateau.map(row => [...row]);
-    let joueur = joueurMaximisant ? 1 : 2;
+    findBestMove(plateau) {
+        this.nodesExplored = 0;
+        const mouvementsPossibles = plateau.getMouvementsPossiblesPourJoueur(plateau.joueurActuel);
+        
+        if (mouvementsPossibles.length === 0) {
+            return null;
+        }
 
-    for (let i = 0; i < 50; i++) { // Limite de 50 coups pour éviter des parties infinies
-        const mouvements = [];
-        for (let ligne = 0; ligne < copiePlateau.TAILLE_PLATEAU; ligne++) {
-            for (let colonne = 0; colonne < copiePlateau.TAILLE_PLATEAU; colonne++) {
-                if (copiePlateau.plateau[ligne][colonne] === joueur) {
-                    const valides = copiePlateau.getMouvementsValides(ligne, colonne);
-                    valides.forEach(m => mouvements.push([[ligne, colonne], m]));
-                }
+        // Création du nœud racine
+        const rootNode = new Node();
+        rootNode.untriedMoves = [...mouvementsPossibles];
+
+        // Exécution des itérations MCTS
+        for (let i = 0; i < this.maxIterations; i++) {
+            const plateauCopie = plateau.clone();
+            const selectedNode = this.select(rootNode, plateauCopie);
+            const expandedNode = this.expand(selectedNode, plateauCopie);
+            const result = this.simulate(plateauCopie);
+            this.backpropagate(expandedNode, result);
+        }
+
+        // Sélection du meilleur mouvement
+        const bestChild = rootNode.children.reduce((best, child) => {
+            return (child.visits > best.visits) ? child : best;
+        });
+
+        return bestChild.move;
+    }
+
+    // Sélection : descente dans l'arbre
+    select(node, plateau) {
+        while (node.untriedMoves.length === 0 && node.children.length > 0) {
+            node = node.getBestChild(this.explorationConstant);
+            if (node.move) {
+                plateau.deplacerPiece(node.move);
             }
         }
-
-        if (mouvements.length === 0) break; // Si aucun mouvement n'est possible, la partie s'arrête
-
-        const mouvement = mouvements[Math.floor(Math.random() * mouvements.length)];
-        const [depart, arrivee] = mouvement;
-        copiePlateau.deplacerPiece(depart, arrivee);
-
-        joueur = joueur === 1 ? 2 : 1; // Changement de joueur
+        return node;
     }
 
-    return evaluation(copiePlateau);
+    // Expansion : ajout d'un nouveau nœud
+    expand(node, plateau) {
+        if (node.untriedMoves.length === 0) {
+            return node;
+        }
+
+        const randomIndex = Math.floor(Math.random() * node.untriedMoves.length);
+        const move = node.untriedMoves.splice(randomIndex, 1)[0];
+        plateau.deplacerPiece(move);
+        
+        return node.addChild(move);
+    }
+
+    // Simulation : partie aléatoire jusqu'à la fin
+    simulate(plateau) {
+        const joueurInitial = plateau.joueurActuel;
+        let depth = this.maxDepth;
+
+        while (!plateau.estPartieTerminee() && depth > 0) {
+            const mouvementsPossibles = plateau.getMouvementsPossiblesPourJoueur(plateau.joueurActuel);
+            if (mouvementsPossibles.length === 0) break;
+
+            const randomMove = mouvementsPossibles[Math.floor(Math.random() * mouvementsPossibles.length)];
+            plateau.deplacerPiece(randomMove);
+            this.nodesExplored++;
+            depth--;
+        }
+
+        // Évaluation de la position finale
+        const score = this.heuristicFn(plateau, joueurInitial);
+        return score > 0 ? 1 : (score < 0 ? 0 : 0.5);
+    }
+
+    // Rétropropagation : mise à jour des statistiques
+    backpropagate(node, result) {
+        while (node !== null) {
+            node.visits++;
+            node.wins += result;
+            node = node.parent;
+        }
+    }
+
+    // Méthode pour obtenir des statistiques sur l'arbre de recherche
+    getTreeStats() {
+        return {
+            totalNodes: this.nodesExplored,
+            averageBranchingFactor: this.children ? this.children.length : 0,
+            maxDepthReached: this.maxDepth
+        };
+    }
 }
 
-function monteCarlo(plateau, joueurMaximisant, simulations = 100) {
-    const mouvements = [];
-
-    // Récupérer les mouvements valides
-    for (let ligne = 0; ligne < plateau.TAILLE_PLATEAU; ligne++) {
-        for (let colonne = 0; colonne < plateau.TAILLE_PLATEAU; colonne++) {
-            if (plateau.plateau[ligne][colonne] === (joueurMaximisant ? 1 : 2)) {
-                const valides = plateau.getMouvementsValides(ligne, colonne);
-                valides.forEach(m => mouvements.push([[ligne, colonne], m]));
-            }
-        }
-    }
-
-    let meilleurMouvement = null;
-    let meilleureEvaluation = -Infinity;
-
-    // Simuler chaque mouvement plusieurs fois
-    for (const mouvement of mouvements) {
-        let sommeEvaluation = 0;
-
-        for (let i = 0; i < simulations; i++) {
-            const copiePlateau = new Plateau();
-            copiePlateau.plateau = plateau.plateau.map(row => [...row]);
-            const [depart, arrivee] = mouvement;
-            copiePlateau.deplacerPiece(depart, arrivee);
-
-            sommeEvaluation += jouerPartieAleatoire(copiePlateau, !joueurMaximisant);
-        }
-
-        const moyenneEvaluation = sommeEvaluation / simulations;
-        if (moyenneEvaluation > meilleureEvaluation) {
-            meilleureEvaluation = moyenneEvaluation;
-            meilleurMouvement = mouvement;
-        }
-    }
-
-    return { mouvement: meilleurMouvement, evaluation: meilleureEvaluation };
-}
-
-module.exports = { monteCarlo };
+module.exports = MonteCarlo;
