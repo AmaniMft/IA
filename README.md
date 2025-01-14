@@ -1,43 +1,106 @@
 # Jeu de Dames avec Intelligence Artificielle
 
-Ce projet implémente un jeu de dames avec différents algorithmes d'intelligence artificielle.
+Ce projet implémente un jeu de dames avec différentes approches d'intelligence artificielle, permettant de comparer l'efficacité de divers algorithmes et heuristiques.
 
-## Algorithmes implémentés
+## 🎮 Caractéristiques
 
-- MinMax
-- Alpha-Beta
-- Monte Carlo (à venir)
-- Las Vegas (à venir)
+- Interface web interactive pour jouer contre l'IA
+- Multiple niveaux de difficulté
+- Visualisation des statistiques de jeu
+- Tests de performance complets
+- Plusieurs heuristiques d'évaluation
 
-## Installation
+## 🤖 Algorithmes d'IA Implémentés
 
+- **Alpha-Beta Pruning**
+  - Optimisation de MinMax
+  - Profondeur configurable
+  - Élagage intelligent des branches
+
+- **MinMax**
+  - Algorithme de base
+  - Exploration complète de l'arbre de jeu
+  - Différentes profondeurs de recherche
+
+## 🔧 Installation
+
+1. Cloner le dépôt :
+```bash
+git clone [votre-repo]
+cd [votre-dossier]
+```
+
+2. Installer les dépendances :
 ```bash
 npm install
 ```
 
-## Lancement des tests
+3. Lancer l'application :
+```bash
+npm start
+```
 
+## 📊 Tests de Performance
+
+Lancer les tests :
 ```bash
 npm test
 ```
 
-## Structure du projet
+Les tests analysent :
+- Comparaison des différentes heuristiques
+- Impact de la profondeur de recherche
+- Performances Alpha-Beta vs MinMax
+- Effet de la taille de la grille
+- Temps d'exécution et utilisation mémoire
 
-- `src/`
-  - `ai/` : Implémentation des algorithmes d'IA
-  - `game/` : Logique du jeu de dames
-- `tests/` : Tests de performance
-- `docs/` : Documentation détaillée
+## 📁 Structure du Projet
 
-## Mesures de performance
+```
+src/
+├── ai/
+│   ├── AlphaBeta.js     # Implémentation Alpha-Beta
+│   ├── MinMax.js        # Implémentation MinMax
+│   ├── BaseAI.js        # Classe de base pour les IA
+│   └── heuristics.js    # Fonctions d'évaluation
+├── game/
+│   └── Plateau.js       # Logique du jeu
+├── public/
+│   ├── css/            # Styles
+│   └── js/             # JavaScript client
+└── server.js           # Serveur de jeu
 
-Les tests mesurent :
-- Temps d'exécution
-- Utilisation mémoire
-- Nombre de nœuds explorés
-- Taux de victoire
-- Pièces capturées
+tests/
+└── checkers_performance.js  # Tests de performance
+```
 
-## Interface graphique
+## 🎯 Fonctionnalités de l'Interface
 
-(À venir)
+- Plateau de jeu interactif
+- Choix du niveau de difficulté
+- Statistiques en temps réel
+- Visualisation des coups possibles
+- Historique des mouvements
+
+## 🔬 Résultats des Tests
+
+Les tests démontrent :
+- L'efficacité supérieure de l'élagage Alpha-Beta
+- L'impact significatif des différentes heuristiques
+- La relation entre profondeur et temps de calcul
+- L'optimisation des performances selon la taille du plateau
+
+## 🛠️ Technologies Utilisées
+
+- Node.js
+- Express.js
+- JavaScript ES6+
+- HTML5/CSS3
+
+## 📝 Licence
+
+[Votre licence]
+
+## 👥 Contributeurs
+
+[]
