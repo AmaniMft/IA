@@ -104,54 +104,85 @@ class MinMax extends BaseAI {
         return mouvements;
     }
 
-    evaluerPosition(plateau, joueur) {
+    evaluerPosition(plateau, joueurInitial) {
         let score = 0;
-        const VALEUR_PION = 10;
-        const VALEUR_DAME = 30;
-        const BONUS_CENTRE = 2;
-        const BONUS_PROTECTION = 1;
-        
+        const facteurDame = 2.5; // Une dame vaut 2.5 fois plus qu'un pion
+        const facteurPosition = 0.1; // Bonus pour les positions avancées
+        const facteurCentre = 0.05; // Bonus pour le contrôle du centre
+        const facteurProtection = 0.15; // Bonus pour les pions protégés
+
         for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
             for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
                 const pion = plateau.plateau[i][j];
-                if (pion) {
-                    const valeurBase = pion.estDame ? VALEUR_DAME : VALEUR_PION;
-                    const scoreBase = pion.couleur === joueur ? valeurBase : -valeurBase;
-                    
-                    // Bonus pour le contrôle du centre
-                    const distanceCentre = Math.abs(i - plateau.TAILLE_PLATEAU/2) + Math.abs(j - plateau.TAILLE_PLATEAU/2);
-                    const bonusCentre = (plateau.TAILLE_PLATEAU - distanceCentre) * BONUS_CENTRE;
-                    
-                    // Bonus pour les pions protégés
-                    let bonusProtection = 0;
-                    for (const [di, dj] of [[-1,-1], [-1,1], [1,-1], [1,1]]) {
-                        const ni = i + di;
-                        const nj = j + dj;
-                        if (plateau.estPositionValide([ni, nj]) && 
-                            plateau.plateau[ni][nj]?.couleur === pion.couleur) {
-                            bonusProtection += BONUS_PROTECTION;
-                        }
-                    }
-                    
-                    score += scoreBase + (pion.couleur === joueur ? bonusCentre + bonusProtection : -(bonusCentre + bonusProtection));
+                if (!pion) continue;
+
+                // Score de base pour chaque pièce
+                let valeurPiece = pion.estDame ? facteurDame : 1;
+                
+                // Ajuste le score selon le joueur
+                if (pion.couleur !== joueurInitial) {
+                    valeurPiece = -valeurPiece;
                 }
+
+                // Bonus pour l'avancement des pions (pas pour les dames)
+                if (!pion.estDame) {
+                    const avancement = pion.couleur === 1 ? 
+                        i / plateau.TAILLE_PLATEAU : 
+                        (plateau.TAILLE_PLATEAU - 1 - i) / plateau.TAILLE_PLATEAU;
+                    valeurPiece += avancement * facteurPosition;
+                }
+
+                // Bonus pour le contrôle du centre
+                const distanceCentreX = Math.abs(j - plateau.TAILLE_PLATEAU / 2);
+                const distanceCentreY = Math.abs(i - plateau.TAILLE_PLATEAU / 2);
+                const bonusCentre = (plateau.TAILLE_PLATEAU / 2 - Math.max(distanceCentreX, distanceCentreY)) * facteurCentre;
+                valeurPiece += bonusCentre;
+
+                // Bonus pour les pions protégés
+                if (!pion.estDame && this.estPionProtege(plateau, i, j)) {
+                    valeurPiece += facteurProtection;
+                }
+
+                score += valeurPiece;
             }
         }
 
-        // Bonus pour la mobilité
-        const joueurActuelTemp = plateau.joueurActuel;
-        
-        plateau.joueurActuel = joueur;
-        const mouvementsJoueur = this.getTousMouvementsPossibles(plateau).length;
-        
-        plateau.joueurActuel = 3 - joueur;
-        const mouvementsAdversaire = this.getTousMouvementsPossibles(plateau).length;
-        
-        plateau.joueurActuel = joueurActuelTemp;
-        
-        score += (mouvementsJoueur - mouvementsAdversaire) * 0.5;
+        // Bonus pour les prises disponibles
+        const prisesDisponibles = plateau.getToutesPrisesObligatoires().length;
+        if (plateau.joueurActuel === joueurInitial) {
+            score += prisesDisponibles * 0.3;
+        } else {
+            score -= prisesDisponibles * 0.3;
+        }
 
         return score;
+    }
+
+    estPionProtege(plateau, ligne, colonne) {
+        const pion = plateau.plateau[ligne][colonne];
+        if (!pion || pion.estDame) return false;
+
+        const direction = pion.couleur === 1 ? 1 : -1;
+        const colonneGauche = colonne - 1;
+        const colonneDroite = colonne + 1;
+
+        // Vérifie si le pion est sur le bord
+        if (colonneGauche < 0 || colonneDroite >= plateau.TAILLE_PLATEAU) {
+            return true;
+        }
+
+        // Vérifie si le pion est protégé par un autre pion allié
+        const ligneArriere = ligne - direction;
+        if (ligneArriere >= 0 && ligneArriere < plateau.TAILLE_PLATEAU) {
+            const pionGauche = plateau.plateau[ligneArriere][colonneGauche];
+            const pionDroit = plateau.plateau[ligneArriere][colonneDroite];
+            if ((pionGauche && pionGauche.couleur === pion.couleur) ||
+                (pionDroit && pionDroit.couleur === pion.couleur)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     measurePerformance(func) {

@@ -140,64 +140,132 @@ class Plateau {
         return prises;
     }
 
-    deplacerPiece(mouvement) {
-        if (!mouvement || !mouvement.de || !mouvement.vers || !Array.isArray(mouvement.de) || !Array.isArray(mouvement.vers)) {
-            return false;
-        }
+    estPartieTerminee() {
+        // Vérifie si un joueur n'a plus de pièces
+        let pionsNoirs = 0;
+        let pionsBlancs = 0;
 
-        const { de, vers, prises = [] } = mouvement;
-        const [ligneDepart, colonneDepart] = de;
-        const [ligneArrivee, colonneArrivee] = vers;
-
-        if (!this.estPositionValide(de) || !this.estPositionValide(vers)) {
-            return false;
-        }
-
-        const pion = this.plateau[ligneDepart][colonneDepart];
-        if (!pion || pion.couleur !== this.joueurActuel) {
-            return false;
-        }
-
-        // Vérifie si le mouvement est valide
-        const mouvementsValides = this.getMouvementsValides(de);
-        const mouvementValide = mouvementsValides.find(m => 
-            m.vers[0] === vers[0] && m.vers[1] === vers[1]
-        );
-
-        if (!mouvementValide) {
-            return false;
-        }
-
-        // Effectue le mouvement
-        this.plateau[ligneArrivee][colonneArrivee] = this.plateau[ligneDepart][colonneDepart];
-        this.plateau[ligneDepart][colonneDepart] = null;
-
-        // Gère les prises
-        if (prises && prises.length > 0) {
-            prises.forEach(([lignePrise, colonnePrise]) => {
-                if (this.estPositionValide([lignePrise, colonnePrise])) {
-                    this.plateau[lignePrise][colonnePrise] = null;
-                    this.statistiques.prises[this.joueurActuel]++;
+        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+                const pion = this.plateau[i][j];
+                if (pion) {
+                    if (pion.couleur === 1) pionsNoirs++;
+                    else if (pion.couleur === 2) pionsBlancs++;
                 }
-            });
-        }
-
-        // Vérifie la promotion en dame
-        if (!this.plateau[ligneArrivee][colonneArrivee].estDame) {
-            if ((this.joueurActuel === 1 && ligneArrivee === this.TAILLE_PLATEAU - 1) ||
-                (this.joueurActuel === 2 && ligneArrivee === 0)) {
-                this.plateau[ligneArrivee][colonneArrivee].estDame = true;
             }
         }
 
-        this.statistiques.nbCoups++;
-
-        // Change de joueur si pas de prise supplémentaire possible
-        if (prises.length === 0 || this.getPrisesPossibles([ligneArrivee, colonneArrivee]).length === 0) {
-            this.joueurActuel = 3 - this.joueurActuel;
+        if (pionsNoirs === 0 || pionsBlancs === 0) {
+            return true;
         }
 
-        return true;
+        // Vérifie si le joueur actuel ne peut plus bouger
+        const mouvementsPossibles = this.getTousMouvementsPossibles();
+        return mouvementsPossibles.length === 0;
+    }
+
+    getTousMouvementsPossibles() {
+        const prisesObligatoires = this.getToutesPrisesObligatoires();
+        if (prisesObligatoires.length > 0) {
+            return prisesObligatoires;
+        }
+
+        const mouvements = [];
+        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+                const pion = this.plateau[i][j];
+                if (pion && pion.couleur === this.joueurActuel) {
+                    const mouvementsPion = this.getMouvementsValides([i, j]);
+                    mouvements.push(...mouvementsPion);
+                }
+            }
+        }
+        return mouvements;
+    }
+
+    getToutesPrisesObligatoires() {
+        const prises = [];
+        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+                const pion = this.plateau[i][j];
+                if (pion && pion.couleur === this.joueurActuel) {
+                    const prisesPion = this.getPrisesPossibles([i, j]);
+                    if (prisesPion.length > 0) {
+                        prises.push(...prisesPion);
+                    }
+                }
+            }
+        }
+        return prises;
+    }
+
+    deplacerPiece(mouvement) {
+        const { de, vers, prises } = mouvement;
+        const [ligneDepart, colonneDepart] = de;
+        const [ligneArrivee, colonneArrivee] = vers;
+
+        // Déplace la pièce
+        const pion = this.plateau[ligneDepart][colonneDepart];
+        this.plateau[ligneArrivee][colonneArrivee] = pion;
+        this.plateau[ligneDepart][colonneDepart] = null;
+
+        // Effectue les prises
+        for (const prise of prises) {
+            const [lignePrise, colonnePrise] = prise;
+            this.plateau[lignePrise][colonnePrise] = null;
+            this.statistiques.prises[this.joueurActuel]++;
+        }
+
+        // Vérifie la promotion en dame
+        if (this.doitEtrePromu(pion, ligneArrivee)) {
+            pion.promouvoir();
+        }
+
+        // Met à jour les statistiques
+        this.statistiques.nbCoups++;
+
+        // Change de joueur si pas de prise multiple possible
+        const prisesSupplementaires = this.getPrisesPossibles([ligneArrivee, colonneArrivee]);
+        if (prisesSupplementaires.length === 0 || prises.length === 0) {
+            this.joueurActuel = this.joueurActuel === 1 ? 2 : 1;
+        }
+
+        return prisesSupplementaires.length > 0;
+    }
+
+    doitEtrePromu(pion, ligne) {
+        return (pion.couleur === 1 && ligne === this.TAILLE_PLATEAU - 1) ||
+               (pion.couleur === 2 && ligne === 0);
+    }
+
+    getGagnant() {
+        if (!this.estPartieTerminee()) {
+            return null;
+        }
+
+        let pionsNoirs = 0;
+        let pionsBlancs = 0;
+
+        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+                const pion = this.plateau[i][j];
+                if (pion) {
+                    if (pion.couleur === 1) pionsNoirs++;
+                    else if (pion.couleur === 2) pionsBlancs++;
+                }
+            }
+        }
+
+        if (pionsNoirs === 0) return 2;
+        if (pionsBlancs === 0) return 1;
+
+        // Si le joueur actuel ne peut pas bouger, l'autre joueur gagne
+        const mouvementsPossibles = this.getTousMouvementsPossibles();
+        if (mouvementsPossibles.length === 0) {
+            return this.joueurActuel === 1 ? 2 : 1;
+        }
+
+        return null;
     }
 
     estPositionValide([ligne, colonne]) {
@@ -206,84 +274,6 @@ class Plateau {
                colonne >= 0 && 
                colonne < this.TAILLE_PLATEAU &&
                (ligne + colonne) % 2 === 1;
-    }
-
-    getToutesPrisesObligatoires() {
-        const prises = [];
-        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
-            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
-                if (this.plateau[i][j]?.couleur === this.joueurActuel) {
-                    const prisesPosition = this.getPrisesPossibles([i, j]);
-                    prises.push(...prisesPosition);
-                }
-            }
-        }
-        return prises;
-    }
-
-    estPartieTerminee() {
-        // Vérifie s'il reste des pions aux deux joueurs
-        let pionsBlancs = false;
-        let pionsNoirs = false;
-        
-        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
-            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
-                const pion = this.plateau[i][j];
-                if (pion) {
-                    if (pion.couleur === 1) pionsNoirs = true;
-                    if (pion.couleur === 2) pionsBlancs = true;
-                    if (pionsBlancs && pionsNoirs) break;
-                }
-            }
-            if (pionsBlancs && pionsNoirs) break;
-        }
-
-        if (!pionsBlancs || !pionsNoirs) {
-            return true;
-        }
-
-        // Vérifie si le joueur actuel peut bouger
-        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
-            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
-                if (this.plateau[i][j]?.couleur === this.joueurActuel) {
-                    if (this.getMouvementsValides([i, j]).length > 0) {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        return true;
-    }
-
-    getGagnant() {
-        if (!this.estPartieTerminee()) {
-            return null;
-        }
-
-        // Compte les pions restants
-        let pionsBlancs = 0;
-        let pionsNoirs = 0;
-        
-        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
-            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
-                const pion = this.plateau[i][j];
-                if (pion) {
-                    if (pion.couleur === 1) pionsNoirs++;
-                    if (pion.couleur === 2) pionsBlancs++;
-                }
-            }
-        }
-
-        // Si un joueur n'a plus de pions ou ne peut plus bouger
-        if (pionsBlancs === 0 || (this.joueurActuel === 2 && this.getToutesPrisesObligatoires().length === 0)) {
-            return 1; // Les noirs gagnent
-        }
-        if (pionsNoirs === 0 || (this.joueurActuel === 1 && this.getToutesPrisesObligatoires().length === 0)) {
-            return 2; // Les blancs gagnent
-        }
-
-        return 0; // Match nul
     }
 
     getStatistiques() {
