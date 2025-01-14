@@ -344,12 +344,16 @@ class Plateau {
     copierPlateau() {
         const nouveauPlateau = new Plateau();
         nouveauPlateau.plateau = this.plateau.map(ligne => 
-            ligne.map(pion => 
-                pion ? new Pion(pion.couleur) : null
-            )
+            ligne.map(pion => {
+                if (!pion) return null;
+                const nouveauPion = new Pion(pion.couleur);
+                if (pion.estDame) nouveauPion.promouvoir();
+                return nouveauPion;
+            })
         );
         nouveauPlateau.joueurActuel = this.joueurActuel;
         nouveauPlateau.statistiques = JSON.parse(JSON.stringify(this.statistiques));
+        nouveauPlateau.mouvementsObligatoires = [...this.mouvementsObligatoires];
         return nouveauPlateau;
     }
 }
