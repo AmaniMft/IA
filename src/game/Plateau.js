@@ -207,33 +207,63 @@ class Plateau {
         const [ligneDepart, colonneDepart] = de;
         const [ligneArrivee, colonneArrivee] = vers;
 
-        // Vérifie si le mouvement est valide
+        // Vérifie si la position de départ est valide
+        if (!this.estPositionValide(de)) {
+            throw new Error('Position de départ invalide');
+        }
+
+        // Vérifie si la position d'arrivée est valide
+        if (!this.estPositionValide(vers)) {
+            throw new Error('Position d\'arrivée invalide');
+        }
+
+        // Vérifie si la pièce appartient au joueur actuel
+        const pion = this.plateau[ligneDepart][colonneDepart];
+        if (!pion || pion.couleur !== this.joueurActuel) {
+            throw new Error('Pièce invalide');
+        }
+
+        // Vérifie si le mouvement est dans la liste des mouvements valides
         const mouvementsValides = this.getMouvementsValides(de);
         const mouvementValide = mouvementsValides.find(m => 
             m.vers[0] === vers[0] && 
             m.vers[1] === vers[1] && 
-            JSON.stringify(m.prises) === JSON.stringify(prises)
+            m.prises.length === prises.length &&
+            m.prises.every((p, i) => 
+                p[0] === prises[i][0] && p[1] === prises[i][1]
+            )
         );
 
         if (!mouvementValide) {
-            throw new Error('Mouvement non autorisé');
+            // Vérifie si c'est une prise
+            const prisesValides = this.getPrisesPossibles(de);
+            const priseValide = prisesValides.find(m => 
+                m.vers[0] === vers[0] && 
+                m.vers[1] === vers[1] && 
+                m.prises.length === prises.length &&
+                m.prises.every((p, i) => 
+                    p[0] === prises[i][0] && p[1] === prises[i][1]
+                )
+            );
+
+            if (!priseValide) {
+                throw new Error('Mouvement non autorisé');
+            }
         }
 
         // Déplace la pièce
-        const pion = this.plateau[ligneDepart][colonneDepart];
-        this.plateau[ligneArrivee][colonneArrivee] = pion;
+        this.plateau[ligneArrivee][colonneArrivee] = this.plateau[ligneDepart][colonneDepart];
         this.plateau[ligneDepart][colonneDepart] = null;
 
         // Effectue les prises
-        for (const prise of prises) {
-            const [lignePrise, colonnePrise] = prise;
+        for (const [lignePrise, colonnePrise] of prises) {
             this.plateau[lignePrise][colonnePrise] = null;
             this.statistiques.prises[this.joueurActuel]++;
         }
 
         // Vérifie la promotion en dame
-        if (this.doitEtrePromu(pion, ligneArrivee)) {
-            pion.promouvoir();
+        if (this.doitEtrePromu(this.plateau[ligneArrivee][colonneArrivee], ligneArrivee)) {
+            this.plateau[ligneArrivee][colonneArrivee].promouvoir();
         }
 
         // Met à jour les statistiques

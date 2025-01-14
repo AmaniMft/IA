@@ -22,22 +22,27 @@ class MinMax extends BaseAI {
 
             // Pour chaque mouvement possible
             for (const mouvement of mouvementsPossibles) {
-                this.nodesExplored++;
-                
                 // Crée une copie du plateau
                 const plateauTemp = plateau.copierPlateau();
                 
-                // Effectue le mouvement
-                plateauTemp.deplacerPiece(mouvement);
-                
-                // Évalue le score pour ce mouvement
-                const score = this.minmax(plateauTemp, this.maxDepth - 1, false, joueur);
-                
-                // Met à jour le meilleur mouvement si nécessaire
-                if (score > meilleurScore) {
-                    meilleurScore = score;
-                    meilleurMouvement = mouvement;
+                try {
+                    // Effectue le mouvement
+                    plateauTemp.deplacerPiece(mouvement);
+                    
+                    // Évalue le score pour ce mouvement
+                    const score = this.minmax(plateauTemp, this.maxDepth - 1, false, joueur);
+                    
+                    // Met à jour le meilleur mouvement si nécessaire
+                    if (score > meilleurScore) {
+                        meilleurScore = score;
+                        meilleurMouvement = mouvement;
+                    }
+                } catch (error) {
+                    console.log('Erreur lors de l\'évaluation du mouvement:', error);
+                    continue;
                 }
+                
+                this.nodesExplored++;
             }
 
             return meilleurMouvement;
@@ -67,66 +72,41 @@ class MinMax extends BaseAI {
             return estMax ? -1000 - profondeur : 1000 + profondeur;
         }
 
-        // Trie les mouvements pour optimiser l'élagage
-        mouvementsPossibles.sort((a, b) => {
-            if (a.prises.length !== b.prises.length) {
-                return b.prises.length - a.prises.length; // Priorise les prises
-            }
-            if (estMax) {
-                return this.evaluerMouvement(plateau, b) - this.evaluerMouvement(plateau, a);
-            }
-            return this.evaluerMouvement(plateau, a) - this.evaluerMouvement(plateau, b);
-        });
-
         if (estMax) {
             let meilleurScore = -Infinity;
             for (const mouvement of mouvementsPossibles) {
-                const plateauTemp = plateau.copierPlateau();
-                const continuerPrise = plateauTemp.deplacerPiece(mouvement);
-                
-                // Si prise multiple, reste au même niveau de profondeur
-                const nouvelleProf = continuerPrise ? profondeur : profondeur - 1;
-                const score = this.minmax(plateauTemp, nouvelleProf, !estMax, joueurInitial);
-                
-                meilleurScore = Math.max(meilleurScore, score);
+                try {
+                    const plateauTemp = plateau.copierPlateau();
+                    const continuerPrise = plateauTemp.deplacerPiece(mouvement);
+                    
+                    // Si prise multiple, reste au même niveau de profondeur
+                    const nouvelleProf = continuerPrise ? profondeur : profondeur - 1;
+                    const score = this.minmax(plateauTemp, nouvelleProf, !estMax, joueurInitial);
+                    
+                    meilleurScore = Math.max(meilleurScore, score);
+                } catch (error) {
+                    continue;
+                }
             }
             return meilleurScore;
         } else {
             let pireScore = Infinity;
             for (const mouvement of mouvementsPossibles) {
-                const plateauTemp = plateau.copierPlateau();
-                const continuerPrise = plateauTemp.deplacerPiece(mouvement);
-                
-                // Si prise multiple, reste au même niveau de profondeur
-                const nouvelleProf = continuerPrise ? profondeur : profondeur - 1;
-                const score = this.minmax(plateauTemp, nouvelleProf, !estMax, joueurInitial);
-                
-                pireScore = Math.min(pireScore, score);
+                try {
+                    const plateauTemp = plateau.copierPlateau();
+                    const continuerPrise = plateauTemp.deplacerPiece(mouvement);
+                    
+                    // Si prise multiple, reste au même niveau de profondeur
+                    const nouvelleProf = continuerPrise ? profondeur : profondeur - 1;
+                    const score = this.minmax(plateauTemp, nouvelleProf, !estMax, joueurInitial);
+                    
+                    pireScore = Math.min(pireScore, score);
+                } catch (error) {
+                    continue;
+                }
             }
             return pireScore;
         }
-    }
-
-    evaluerMouvement(plateau, mouvement) {
-        // Évalue rapidement un mouvement pour le tri
-        let score = 0;
-        
-        // Bonus pour les prises
-        score += mouvement.prises.length * 10;
-        
-        // Bonus pour l'avancement vers la promotion
-        const [ligneArrivee] = mouvement.vers;
-        const pion = plateau.plateau[mouvement.de[0]][mouvement.de[1]];
-        
-        if (!pion.estDame) {
-            if (pion.couleur === 1 && ligneArrivee === plateau.TAILLE_PLATEAU - 1) {
-                score += 8;
-            } else if (pion.couleur === 2 && ligneArrivee === 0) {
-                score += 8;
-            }
-        }
-        
-        return score;
     }
 
     getTousMouvementsPossibles(plateau) {
