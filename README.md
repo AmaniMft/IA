@@ -129,7 +129,7 @@ Trois heuristiques ont été testées : basic, position et mobility.
 ### Recommandations
 1. Utiliser exclusivement l'algorithme Alpha-Beta
 2. Limiter la profondeur de recherche sur les grilles 10x10
-3. Développer des heuristiques plus sophistiquées pour mieux différencier les positions
+
 
 ## 🛠️ Technologies Utilisées
 
