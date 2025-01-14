@@ -47,24 +47,47 @@ class MinMax extends BaseAI {
     minmax(plateau, profondeur, estMax, joueurInitial) {
         this.nodesExplored++;
         
-        // Si on atteint la profondeur maximale ou fin de partie
-        if (profondeur === 0 || plateau.estPartieTerminee()) {
+        // Vérifie d'abord si la partie est terminée
+        if (plateau.estPartieTerminee()) {
+            const gagnant = plateau.getGagnant();
+            if (gagnant === joueurInitial) return 1000 + profondeur;
+            if (gagnant === (3 - joueurInitial)) return -1000 - profondeur;
+            return 0; // Match nul
+        }
+
+        // Si on atteint la profondeur maximale
+        if (profondeur === 0) {
             return this.evaluerPosition(plateau, joueurInitial);
         }
 
         const mouvementsPossibles = this.getTousMouvementsPossibles(plateau);
 
-        // Si aucun mouvement possible, c'est perdu pour le joueur actuel
+        // Si aucun mouvement possible
         if (mouvementsPossibles.length === 0) {
-            return estMax ? -1000 : 1000;
+            return estMax ? -1000 - profondeur : 1000 + profondeur;
         }
+
+        // Trie les mouvements pour optimiser l'élagage
+        mouvementsPossibles.sort((a, b) => {
+            if (a.prises.length !== b.prises.length) {
+                return b.prises.length - a.prises.length; // Priorise les prises
+            }
+            if (estMax) {
+                return this.evaluerMouvement(plateau, b) - this.evaluerMouvement(plateau, a);
+            }
+            return this.evaluerMouvement(plateau, a) - this.evaluerMouvement(plateau, b);
+        });
 
         if (estMax) {
             let meilleurScore = -Infinity;
             for (const mouvement of mouvementsPossibles) {
                 const plateauTemp = plateau.copierPlateau();
-                plateauTemp.deplacerPiece(mouvement);
-                const score = this.minmax(plateauTemp, profondeur - 1, false, joueurInitial);
+                const continuerPrise = plateauTemp.deplacerPiece(mouvement);
+                
+                // Si prise multiple, reste au même niveau de profondeur
+                const nouvelleProf = continuerPrise ? profondeur : profondeur - 1;
+                const score = this.minmax(plateauTemp, nouvelleProf, !estMax, joueurInitial);
+                
                 meilleurScore = Math.max(meilleurScore, score);
             }
             return meilleurScore;
@@ -72,116 +95,157 @@ class MinMax extends BaseAI {
             let pireScore = Infinity;
             for (const mouvement of mouvementsPossibles) {
                 const plateauTemp = plateau.copierPlateau();
-                plateauTemp.deplacerPiece(mouvement);
-                const score = this.minmax(plateauTemp, profondeur - 1, true, joueurInitial);
+                const continuerPrise = plateauTemp.deplacerPiece(mouvement);
+                
+                // Si prise multiple, reste au même niveau de profondeur
+                const nouvelleProf = continuerPrise ? profondeur : profondeur - 1;
+                const score = this.minmax(plateauTemp, nouvelleProf, !estMax, joueurInitial);
+                
                 pireScore = Math.min(pireScore, score);
             }
             return pireScore;
         }
     }
 
-    getTousMouvementsPossibles(plateau) {
-        const mouvements = [];
-        const taille = plateau.TAILLE_PLATEAU;
-
-        // Vérifie d'abord s'il y a des prises obligatoires
-        const prisesObligatoires = plateau.getToutesPrisesObligatoires();
-        if (prisesObligatoires.length > 0) {
-            return prisesObligatoires;
-        }
-
-        // Si pas de prises obligatoires, cherche tous les mouvements possibles
-        for (let i = 0; i < taille; i++) {
-            for (let j = 0; j < taille; j++) {
-                const piece = plateau.plateau[i][j];
-                if (piece && piece.couleur === plateau.joueurActuel) {
-                    const mouvementsPiece = plateau.getMouvementsValides([i, j]);
-                    mouvements.push(...mouvementsPiece);
-                }
-            }
-        }
-
-        return mouvements;
-    }
-
-    evaluerPosition(plateau, joueurInitial) {
+    evaluerMouvement(plateau, mouvement) {
+        // Évalue rapidement un mouvement pour le tri
         let score = 0;
-        const facteurDame = 2.5; // Une dame vaut 2.5 fois plus qu'un pion
-        const facteurPosition = 0.1; // Bonus pour les positions avancées
-        const facteurCentre = 0.05; // Bonus pour le contrôle du centre
-        const facteurProtection = 0.15; // Bonus pour les pions protégés
-
-        for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
-            for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
-                const pion = plateau.plateau[i][j];
-                if (!pion) continue;
-
-                // Score de base pour chaque pièce
-                let valeurPiece = pion.estDame ? facteurDame : 1;
-                
-                // Ajuste le score selon le joueur
-                if (pion.couleur !== joueurInitial) {
-                    valeurPiece = -valeurPiece;
-                }
-
-                // Bonus pour l'avancement des pions (pas pour les dames)
-                if (!pion.estDame) {
-                    const avancement = pion.couleur === 1 ? 
-                        i / plateau.TAILLE_PLATEAU : 
-                        (plateau.TAILLE_PLATEAU - 1 - i) / plateau.TAILLE_PLATEAU;
-                    valeurPiece += avancement * facteurPosition;
-                }
-
-                // Bonus pour le contrôle du centre
-                const distanceCentreX = Math.abs(j - plateau.TAILLE_PLATEAU / 2);
-                const distanceCentreY = Math.abs(i - plateau.TAILLE_PLATEAU / 2);
-                const bonusCentre = (plateau.TAILLE_PLATEAU / 2 - Math.max(distanceCentreX, distanceCentreY)) * facteurCentre;
-                valeurPiece += bonusCentre;
-
-                // Bonus pour les pions protégés
-                if (!pion.estDame && this.estPionProtege(plateau, i, j)) {
-                    valeurPiece += facteurProtection;
-                }
-
-                score += valeurPiece;
+        
+        // Bonus pour les prises
+        score += mouvement.prises.length * 10;
+        
+        // Bonus pour l'avancement vers la promotion
+        const [ligneArrivee] = mouvement.vers;
+        const pion = plateau.plateau[mouvement.de[0]][mouvement.de[1]];
+        
+        if (!pion.estDame) {
+            if (pion.couleur === 1 && ligneArrivee === plateau.TAILLE_PLATEAU - 1) {
+                score += 8;
+            } else if (pion.couleur === 2 && ligneArrivee === 0) {
+                score += 8;
             }
         }
-
-        // Bonus pour les prises disponibles
-        const prisesDisponibles = plateau.getToutesPrisesObligatoires().length;
-        if (plateau.joueurActuel === joueurInitial) {
-            score += prisesDisponibles * 0.3;
-        } else {
-            score -= prisesDisponibles * 0.3;
-        }
-
+        
         return score;
     }
 
-    estPionProtege(plateau, ligne, colonne) {
-        const pion = plateau.plateau[ligne][colonne];
-        if (!pion || pion.estDame) return false;
-
-        const direction = pion.couleur === 1 ? 1 : -1;
-        const colonneGauche = colonne - 1;
-        const colonneDroite = colonne + 1;
-
-        // Vérifie si le pion est sur le bord
-        if (colonneGauche < 0 || colonneDroite >= plateau.TAILLE_PLATEAU) {
-            return true;
-        }
-
-        // Vérifie si le pion est protégé par un autre pion allié
-        const ligneArriere = ligne - direction;
-        if (ligneArriere >= 0 && ligneArriere < plateau.TAILLE_PLATEAU) {
-            const pionGauche = plateau.plateau[ligneArriere][colonneGauche];
-            const pionDroit = plateau.plateau[ligneArriere][colonneDroite];
-            if ((pionGauche && pionGauche.couleur === pion.couleur) ||
-                (pionDroit && pionDroit.couleur === pion.couleur)) {
-                return true;
+    getTousMouvementsPossibles(plateau) {
+        const mouvements = [];
+        const joueur = plateau.joueurActuel;
+        
+        // Vérifie d'abord s'il y a des prises obligatoires
+        for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
+                const piece = plateau.plateau[i][j];
+                if (piece && piece.couleur === joueur) {
+                    const prises = plateau.getPrisesPossibles([i, j]);
+                    if (prises.length > 0) {
+                        mouvements.push(...prises);
+                    }
+                }
             }
         }
+        
+        // S'il n'y a pas de prises obligatoires, on cherche les mouvements simples
+        if (mouvements.length === 0) {
+            for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
+                for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
+                    const piece = plateau.plateau[i][j];
+                    if (piece && piece.couleur === joueur) {
+                        const mouvementsValides = plateau.getMouvementsValides([i, j]);
+                        mouvements.push(...mouvementsValides);
+                    }
+                }
+            }
+        }
+        
+        return mouvements;
+    }
 
+    evaluerPosition(plateau, joueur) {
+        let score = 0;
+        const adversaire = 3 - joueur;
+        
+        // Compte les pièces
+        let piecesPropres = 0;
+        let piecesAdverses = 0;
+        let damesPropres = 0;
+        let damesAdverses = 0;
+        
+        for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
+                const piece = plateau.plateau[i][j];
+                if (piece) {
+                    if (piece.couleur === joueur) {
+                        if (piece.estDame) {
+                            damesPropres++;
+                            score += 15; // Une dame vaut plus qu'un pion
+                        } else {
+                            piecesPropres++;
+                            score += 10;
+                            // Bonus pour l'avancement vers la promotion
+                            if (joueur === 1) {
+                                score += i * 0.5; // Bonus pour l'avancement vers le bas
+                            } else {
+                                score += (plateau.TAILLE_PLATEAU - 1 - i) * 0.5; // Bonus pour l'avancement vers le haut
+                            }
+                        }
+                        // Bonus pour le contrôle du centre
+                        if (j > 2 && j < plateau.TAILLE_PLATEAU - 3) {
+                            score += 1;
+                        }
+                    } else {
+                        if (piece.estDame) {
+                            damesAdverses++;
+                            score -= 15;
+                        } else {
+                            piecesAdverses++;
+                            score -= 10;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Bonus pour la mobilité
+        const mouvementsPossibles = this.getTousMouvementsPossibles(plateau);
+        score += mouvementsPossibles.length * 0.1;
+        
+        // Bonus pour la protection des pièces
+        for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
+                const piece = plateau.plateau[i][j];
+                if (piece && piece.couleur === joueur && !piece.estDame) {
+                    // Vérifie si la pièce est protégée par une autre pièce
+                    if (this.estPieceProtegee(plateau, i, j)) {
+                        score += 2;
+                    }
+                }
+            }
+        }
+        
+        return score;
+    }
+
+    estPieceProtegee(plateau, ligne, colonne) {
+        const piece = plateau.plateau[ligne][colonne];
+        if (!piece) return false;
+        
+        const direction = piece.couleur === 1 ? -1 : 1;
+        const positions = [
+            [ligne + direction, colonne - 1],
+            [ligne + direction, colonne + 1]
+        ];
+        
+        for (const [l, c] of positions) {
+            if (l >= 0 && l < plateau.TAILLE_PLATEAU && c >= 0 && c < plateau.TAILLE_PLATEAU) {
+                const pieceAdjacente = plateau.plateau[l][c];
+                if (pieceAdjacente && pieceAdjacente.couleur === piece.couleur) {
+                    return true;
+                }
+            }
+        }
+        
         return false;
     }
 

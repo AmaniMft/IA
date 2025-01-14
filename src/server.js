@@ -19,10 +19,14 @@ app.post('/api/new-game', (req, res) => {
         plateau = new Plateau();
         res.json({
             board: plateau.plateau,
-            currentPlayer: plateau.joueurActuel
+            currentPlayer: plateau.joueurActuel,
+            gameOver: false,
+            winner: null,
+            statistics: plateau.getStatistiques()
         });
     } catch (error) {
-        res.status(400).json({ error: error.message });
+        console.error('Erreur new-game:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -30,6 +34,9 @@ app.post('/api/new-game', (req, res) => {
 app.post('/api/move-options', (req, res) => {
     try {
         const { position } = req.body;
+        if (!plateau) {
+            throw new Error('Aucune partie en cours');
+        }
         if (!position || !Array.isArray(position) || position.length !== 2) {
             throw new Error('Position invalide');
         }
@@ -37,6 +44,7 @@ app.post('/api/move-options', (req, res) => {
         const mouvements = plateau.getMouvementsValides(position);
         res.json({ moves: mouvements });
     } catch (error) {
+        console.error('Erreur move-options:', error);
         res.status(400).json({ error: error.message });
     }
 });
@@ -44,21 +52,27 @@ app.post('/api/move-options', (req, res) => {
 // Endpoint pour effectuer un mouvement
 app.post('/api/move', (req, res) => {
     try {
+        if (!plateau) {
+            throw new Error('Aucune partie en cours');
+        }
+
         const { de, vers, prises } = req.body;
         if (!de || !vers || !Array.isArray(de) || !Array.isArray(vers)) {
             throw new Error('Mouvement invalide');
         }
 
-        plateau.deplacerPiece({ de, vers, prises });
+        const peutContinuer = plateau.deplacerPiece({ de, vers, prises: prises || [] });
         
         res.json({
             board: plateau.plateau,
             currentPlayer: plateau.joueurActuel,
             gameOver: plateau.estPartieTerminee(),
             winner: plateau.getGagnant(),
-            statistics: plateau.getStatistiques()
+            statistics: plateau.getStatistiques(),
+            canContinue: peutContinuer
         });
     } catch (error) {
+        console.error('Erreur move:', error);
         res.status(400).json({ error: error.message });
     }
 });
@@ -66,7 +80,11 @@ app.post('/api/move', (req, res) => {
 // Endpoint pour le coup de l'IA
 app.post('/api/ai-move', (req, res) => {
     try {
-        const { algorithm, difficulty } = req.body;
+        if (!plateau) {
+            throw new Error('Aucune partie en cours');
+        }
+
+        const { algorithm = 'MinMax', difficulty = 4 } = req.body;
         
         // Crée l'instance d'IA appropriée
         if (algorithm === 'MinMax') {
@@ -77,13 +95,14 @@ app.post('/api/ai-move', (req, res) => {
             throw new Error('Algorithme IA invalide');
         }
 
-        // Trouve et effectue le meilleur mouvement
+        // Trouve le meilleur mouvement
         const move = aiInstance.findBestMove(plateau);
         if (!move) {
             throw new Error('Aucun mouvement possible pour l\'IA');
         }
 
-        plateau.deplacerPiece(move);
+        // Effectue le mouvement
+        const peutContinuer = plateau.deplacerPiece(move);
 
         res.json({
             board: plateau.plateau,
@@ -91,27 +110,31 @@ app.post('/api/ai-move', (req, res) => {
             currentPlayer: plateau.joueurActuel,
             gameOver: plateau.estPartieTerminee(),
             winner: plateau.getGagnant(),
-            statistics: plateau.getStatistiques()
+            statistics: plateau.getStatistiques(),
+            canContinue: peutContinuer
         });
     } catch (error) {
+        console.error('Erreur ai-move:', error);
         res.status(400).json({ error: error.message });
     }
 });
 
-// Endpoint pour obtenir le statut du jeu
-app.get('/api/game-status', (req, res) => {
+// Endpoint pour obtenir l'état du jeu
+app.get('/api/game-state', (req, res) => {
     try {
         if (!plateau) {
             throw new Error('Aucune partie en cours');
         }
 
         res.json({
+            board: plateau.plateau,
             currentPlayer: plateau.joueurActuel,
             gameOver: plateau.estPartieTerminee(),
             winner: plateau.getGagnant(),
             statistics: plateau.getStatistiques()
         });
     } catch (error) {
+        console.error('Erreur game-state:', error);
         res.status(400).json({ error: error.message });
     }
 });

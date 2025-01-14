@@ -59,28 +59,27 @@ class Plateau {
         }
 
         const mouvements = [];
-        const directions = pion.estDame ? [-1, 1] : (pion.couleur === 1 ? [1] : [-1]);
+        const directions = pion.estDame ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] :
+            pion.couleur === 1 ? [[1, -1], [1, 1]] : [[-1, -1], [-1, 1]];
 
-        for (const dLigne of directions) {
-            for (const dColonne of [-1, 1]) {
-                const nouvelleLigne = ligne + dLigne;
-                const nouvelleColonne = colonne + dColonne;
+        for (const [dLigne, dColonne] of directions) {
+            const nouvelleLigne = ligne + dLigne;
+            const nouvelleColonne = colonne + dColonne;
 
-                if (this.estPositionValide([nouvelleLigne, nouvelleColonne]) && 
-                    !this.plateau[nouvelleLigne][nouvelleColonne]) {
-                    mouvements.push({
-                        de: [ligne, colonne],
-                        vers: [nouvelleLigne, nouvelleColonne],
-                        prises: []
-                    });
-                }
+            if (this.estPositionValide([nouvelleLigne, nouvelleColonne]) && 
+                !this.plateau[nouvelleLigne][nouvelleColonne]) {
+                mouvements.push({
+                    de: [ligne, colonne],
+                    vers: [nouvelleLigne, nouvelleColonne],
+                    prises: []
+                });
             }
         }
 
         return mouvements;
     }
 
-    getPrisesPossibles(position, prisesAccumulees = []) {
+    getPrisesPossibles(position) {
         if (!position || !Array.isArray(position) || position.length !== 2) {
             return [];
         }
@@ -91,48 +90,37 @@ class Plateau {
         }
 
         const pion = this.plateau[ligne][colonne];
-        if (!pion || (prisesAccumulees.length === 0 && pion.couleur !== this.joueurActuel)) {
+        if (!pion || pion.couleur !== this.joueurActuel) {
             return [];
         }
 
         const prises = [];
-        const directions = pion.estDame ? [-1, 1] : (pion.couleur === 1 ? [1] : [-1]);
+        const directions = pion.estDame ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] :
+            pion.couleur === 1 ? [[1, -1], [1, 1]] : [[-1, -1], [-1, 1]];
 
-        for (const dLigne of directions) {
-            for (const dColonne of [-1, 1]) {
-                const lignePrise = ligne + dLigne;
-                const colonnePrise = colonne + dColonne;
-                const ligneArrivee = ligne + (dLigne * 2);
-                const colonneArrivee = colonne + (dColonne * 2);
+        for (const [dLigne, dColonne] of directions) {
+            const nouvLigne = ligne + 2 * dLigne;
+            const nouvColonne = colonne + 2 * dColonne;
+            const lignePrise = ligne + dLigne;
+            const colonnePrise = colonne + dColonne;
 
-                if (this.estPositionValide([ligneArrivee, colonneArrivee]) && 
-                    this.estPositionValide([lignePrise, colonnePrise]) &&
-                    this.plateau[lignePrise][colonnePrise]?.couleur === (3 - pion.couleur) && 
-                    !this.plateau[ligneArrivee][colonneArrivee] &&
-                    !prisesAccumulees.some(p => p[0] === lignePrise && p[1] === colonnePrise)) {
-                    
-                    const nouvellesPrises = [...prisesAccumulees, [lignePrise, colonnePrise]];
-                    
-                    // Simule la prise pour vérifier les prises suivantes
-                    const plateauTemp = this.copierPlateau();
-                    plateauTemp.plateau[ligneArrivee][colonneArrivee] = plateauTemp.plateau[ligne][colonne];
-                    plateauTemp.plateau[ligne][colonne] = null;
-                    plateauTemp.plateau[lignePrise][colonnePrise] = null;
-                    
-                    const prisesSuivantes = plateauTemp.getPrisesPossibles(
-                        [ligneArrivee, colonneArrivee],
-                        nouvellesPrises
-                    );
+            if (this.estPositionValide([nouvLigne, nouvColonne]) &&
+                this.plateau[lignePrise][colonnePrise]?.couleur === (3 - pion.couleur) &&
+                !this.plateau[nouvLigne][nouvColonne]) {
+                prises.push({
+                    de: [ligne, colonne],
+                    vers: [nouvLigne, nouvColonne],
+                    prises: [[lignePrise, colonnePrise]]
+                });
 
-                    if (prisesSuivantes.length > 0) {
-                        prises.push(...prisesSuivantes);
-                    } else {
-                        prises.push({
-                            de: position,
-                            vers: [ligneArrivee, colonneArrivee],
-                            prises: nouvellesPrises
-                        });
-                    }
+                // Vérifie les prises multiples
+                const prisesSuivantes = this.getPrisesPossibles([nouvLigne, nouvColonne]);
+                for (const priseSuivante of prisesSuivantes) {
+                    prises.push({
+                        de: [ligne, colonne],
+                        vers: priseSuivante.vers,
+                        prises: [[lignePrise, colonnePrise], ...priseSuivante.prises]
+                    });
                 }
             }
         }
@@ -141,27 +129,38 @@ class Plateau {
     }
 
     estPartieTerminee() {
-        // Vérifie si un joueur n'a plus de pièces
         let pionsNoirs = 0;
         let pionsBlancs = 0;
 
+        // Compte les pions de chaque couleur
         for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
             for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
                 const pion = this.plateau[i][j];
                 if (pion) {
                     if (pion.couleur === 1) pionsNoirs++;
-                    else if (pion.couleur === 2) pionsBlancs++;
+                    else pionsBlancs++;
                 }
             }
         }
 
+        // Vérifie si un joueur n'a plus de pions
         if (pionsNoirs === 0 || pionsBlancs === 0) {
             return true;
         }
 
-        // Vérifie si le joueur actuel ne peut plus bouger
-        const mouvementsPossibles = this.getTousMouvementsPossibles();
-        return mouvementsPossibles.length === 0;
+        // Vérifie si le joueur actuel a des mouvements possibles
+        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+                const pion = this.plateau[i][j];
+                if (pion && pion.couleur === this.joueurActuel) {
+                    if (this.getMouvementsValides([i, j]).length > 0) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     getTousMouvementsPossibles() {
@@ -200,9 +199,25 @@ class Plateau {
     }
 
     deplacerPiece(mouvement) {
-        const { de, vers, prises } = mouvement;
+        if (!mouvement || !mouvement.de || !mouvement.vers || !Array.isArray(mouvement.de) || !Array.isArray(mouvement.vers)) {
+            throw new Error('Mouvement invalide');
+        }
+
+        const { de, vers, prises = [] } = mouvement;
         const [ligneDepart, colonneDepart] = de;
         const [ligneArrivee, colonneArrivee] = vers;
+
+        // Vérifie si le mouvement est valide
+        const mouvementsValides = this.getMouvementsValides(de);
+        const mouvementValide = mouvementsValides.find(m => 
+            m.vers[0] === vers[0] && 
+            m.vers[1] === vers[1] && 
+            JSON.stringify(m.prises) === JSON.stringify(prises)
+        );
+
+        if (!mouvementValide) {
+            throw new Error('Mouvement non autorisé');
+        }
 
         // Déplace la pièce
         const pion = this.plateau[ligneDepart][colonneDepart];
@@ -224,18 +239,23 @@ class Plateau {
         // Met à jour les statistiques
         this.statistiques.nbCoups++;
 
-        // Change de joueur si pas de prise multiple possible
+        // Vérifie s'il y a des prises supplémentaires possibles
         const prisesSupplementaires = this.getPrisesPossibles([ligneArrivee, colonneArrivee]);
-        if (prisesSupplementaires.length === 0 || prises.length === 0) {
+        const peutContinuer = prisesSupplementaires.length > 0 && prises.length > 0;
+
+        // Change de joueur si pas de prise multiple possible
+        if (!peutContinuer) {
             this.joueurActuel = this.joueurActuel === 1 ? 2 : 1;
         }
 
-        return prisesSupplementaires.length > 0;
+        return peutContinuer;
     }
 
     doitEtrePromu(pion, ligne) {
-        return (pion.couleur === 1 && ligne === this.TAILLE_PLATEAU - 1) ||
-               (pion.couleur === 2 && ligne === 0);
+        return !pion.estDame && (
+            (pion.couleur === 1 && ligne === this.TAILLE_PLATEAU - 1) ||
+            (pion.couleur === 2 && ligne === 0)
+        );
     }
 
     getGagnant() {
@@ -246,12 +266,13 @@ class Plateau {
         let pionsNoirs = 0;
         let pionsBlancs = 0;
 
+        // Compte les pions de chaque couleur
         for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
             for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
                 const pion = this.plateau[i][j];
                 if (pion) {
                     if (pion.couleur === 1) pionsNoirs++;
-                    else if (pion.couleur === 2) pionsBlancs++;
+                    else pionsBlancs++;
                 }
             }
         }
@@ -259,32 +280,42 @@ class Plateau {
         if (pionsNoirs === 0) return 2;
         if (pionsBlancs === 0) return 1;
 
-        // Si le joueur actuel ne peut pas bouger, l'autre joueur gagne
-        const mouvementsPossibles = this.getTousMouvementsPossibles();
-        if (mouvementsPossibles.length === 0) {
-            return this.joueurActuel === 1 ? 2 : 1;
+        // Si un joueur n'a plus de mouvements possibles
+        let mouvementsPossibles = false;
+        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+                const pion = this.plateau[i][j];
+                if (pion && pion.couleur === this.joueurActuel) {
+                    if (this.getMouvementsValides([i, j]).length > 0) {
+                        mouvementsPossibles = true;
+                        break;
+                    }
+                }
+            }
+            if (mouvementsPossibles) break;
         }
 
-        return null;
+        return mouvementsPossibles ? null : (3 - this.joueurActuel);
     }
 
     estPositionValide([ligne, colonne]) {
-        return ligne >= 0 && 
-               ligne < this.TAILLE_PLATEAU && 
-               colonne >= 0 && 
-               colonne < this.TAILLE_PLATEAU &&
-               (ligne + colonne) % 2 === 1;
+        return ligne >= 0 && ligne < this.TAILLE_PLATEAU &&
+               colonne >= 0 && colonne < this.TAILLE_PLATEAU;
     }
 
     getStatistiques() {
-        return this.statistiques;
+        return {
+            nbCoups: this.statistiques.nbCoups,
+            prises: { ...this.statistiques.prises },
+            tempsReflexion: { ...this.statistiques.tempsReflexion }
+        };
     }
 
     copierPlateau() {
         const nouveauPlateau = new Plateau();
         nouveauPlateau.plateau = this.plateau.map(ligne => 
             ligne.map(pion => 
-                pion ? Object.assign(new Pion(pion.couleur), pion) : null
+                pion ? new Pion(pion.couleur) : null
             )
         );
         nouveauPlateau.joueurActuel = this.joueurActuel;
