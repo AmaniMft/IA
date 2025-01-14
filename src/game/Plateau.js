@@ -11,6 +11,7 @@ class Plateau {
             prises: { 1: 0, 2: 0 },
             tempsReflexion: { 1: 0, 2: 0 }
         };
+        this.historique = []; // Pour annuler les coups
     }
 
     creerPlateau() {
@@ -53,7 +54,7 @@ class Plateau {
         }
 
         // Vérifie d'abord s'il y a des prises obligatoires
-        const prises = this.getPrisesPossibles([ligne, colonne]);
+        const prises = this.getPrisesPossibles([ligne, colonne], false);
         if (prises.length > 0) {
             return prises;
         }
@@ -79,7 +80,7 @@ class Plateau {
         return mouvements;
     }
 
-    getPrisesPossibles(position) {
+    getPrisesPossibles(position, checkMultiples = true) {
         if (!position || !Array.isArray(position) || position.length !== 2) {
             return [];
         }
@@ -107,20 +108,24 @@ class Plateau {
             if (this.estPositionValide([nouvLigne, nouvColonne]) &&
                 this.plateau[lignePrise][colonnePrise]?.couleur === (3 - pion.couleur) &&
                 !this.plateau[nouvLigne][nouvColonne]) {
+                
+                // Prise simple
                 prises.push({
                     de: [ligne, colonne],
                     vers: [nouvLigne, nouvColonne],
                     prises: [[lignePrise, colonnePrise]]
                 });
 
-                // Vérifie les prises multiples
-                const prisesSuivantes = this.getPrisesPossibles([nouvLigne, nouvColonne]);
-                for (const priseSuivante of prisesSuivantes) {
-                    prises.push({
-                        de: [ligne, colonne],
-                        vers: priseSuivante.vers,
-                        prises: [[lignePrise, colonnePrise], ...priseSuivante.prises]
-                    });
+                // Vérifie les prises multiples seulement si demandé
+                if (checkMultiples) {
+                    const prisesSuivantes = this.getPrisesPossibles([nouvLigne, nouvColonne], false);
+                    for (const priseSuivante of prisesSuivantes) {
+                        prises.push({
+                            de: [ligne, colonne],
+                            vers: priseSuivante.vers,
+                            prises: [[lignePrise, colonnePrise], ...priseSuivante.prises]
+                        });
+                    }
                 }
             }
         }
@@ -129,16 +134,16 @@ class Plateau {
     }
 
     estPartieTerminee() {
+        // Compte les pions de chaque joueur
         let pionsNoirs = 0;
         let pionsBlancs = 0;
 
-        // Compte les pions de chaque couleur
         for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
             for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
                 const pion = this.plateau[i][j];
                 if (pion) {
                     if (pion.couleur === 1) pionsNoirs++;
-                    else pionsBlancs++;
+                    else if (pion.couleur === 2) pionsBlancs++;
                 }
             }
         }
@@ -149,18 +154,37 @@ class Plateau {
         }
 
         // Vérifie si le joueur actuel a des mouvements possibles
-        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
-            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+        let mouvementPossible = false;
+        for (let i = 0; i < this.TAILLE_PLATEAU && !mouvementPossible; i++) {
+            for (let j = 0; j < this.TAILLE_PLATEAU && !mouvementPossible; j++) {
                 const pion = this.plateau[i][j];
                 if (pion && pion.couleur === this.joueurActuel) {
-                    if (this.getMouvementsValides([i, j]).length > 0) {
-                        return false;
+                    // Vérifier les prises possibles
+                    const prises = this.getPrisesPossibles([i, j], false);
+                    if (prises.length > 0) {
+                        mouvementPossible = true;
+                        break;
+                    }
+
+                    // Vérifier les mouvements simples
+                    const directions = pion.estDame ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] :
+                        pion.couleur === 1 ? [[1, -1], [1, 1]] : [[-1, -1], [-1, 1]];
+
+                    for (const [dLigne, dColonne] of directions) {
+                        const nouvelleLigne = i + dLigne;
+                        const nouvelleColonne = j + dColonne;
+
+                        if (this.estPositionValide([nouvelleLigne, nouvelleColonne]) && 
+                            !this.plateau[nouvelleLigne][nouvelleColonne]) {
+                            mouvementPossible = true;
+                            break;
+                        }
                     }
                 }
             }
         }
 
-        return true;
+        return !mouvementPossible;
     }
 
     getTousMouvementsPossibles() {
@@ -198,87 +222,159 @@ class Plateau {
         return prises;
     }
 
-    deplacerPiece(mouvement) {
-        if (!mouvement || !mouvement.de || !mouvement.vers || !Array.isArray(mouvement.de) || !Array.isArray(mouvement.vers)) {
-            throw new Error('Mouvement invalide');
-        }
+    getMouvementsPossiblesPourJoueur(joueur) {
+        const mouvements = [];
+        const prises = [];
 
-        const { de, vers, prises = [] } = mouvement;
-        const [ligneDepart, colonneDepart] = de;
-        const [ligneArrivee, colonneArrivee] = vers;
-
-        // Vérifie si la position de départ est valide
-        if (!this.estPositionValide(de)) {
-            throw new Error('Position de départ invalide');
-        }
-
-        // Vérifie si la position d'arrivée est valide
-        if (!this.estPositionValide(vers)) {
-            throw new Error('Position d\'arrivée invalide');
-        }
-
-        // Vérifie si la pièce appartient au joueur actuel
-        const pion = this.plateau[ligneDepart][colonneDepart];
-        if (!pion || pion.couleur !== this.joueurActuel) {
-            throw new Error('Pièce invalide');
-        }
-
-        // Vérifie si le mouvement est dans la liste des mouvements valides
-        const mouvementsValides = this.getMouvementsValides(de);
-        const mouvementValide = mouvementsValides.find(m => 
-            m.vers[0] === vers[0] && 
-            m.vers[1] === vers[1] && 
-            m.prises.length === prises.length &&
-            m.prises.every((p, i) => 
-                p[0] === prises[i][0] && p[1] === prises[i][1]
-            )
-        );
-
-        if (!mouvementValide) {
-            // Vérifie si c'est une prise
-            const prisesValides = this.getPrisesPossibles(de);
-            const priseValide = prisesValides.find(m => 
-                m.vers[0] === vers[0] && 
-                m.vers[1] === vers[1] && 
-                m.prises.length === prises.length &&
-                m.prises.every((p, i) => 
-                    p[0] === prises[i][0] && p[1] === prises[i][1]
-                )
-            );
-
-            if (!priseValide) {
-                throw new Error('Mouvement non autorisé');
+        // Parcourir toutes les cases du plateau
+        for (let ligne = 0; ligne < this.TAILLE_PLATEAU; ligne++) {
+            for (let colonne = 0; colonne < this.TAILLE_PLATEAU; colonne++) {
+                const piece = this.plateau[ligne][colonne];
+                if (piece && piece.couleur === joueur) {
+                    // Vérifier les prises possibles pour cette pièce
+                    const prisesPosition = this.getPrisesPossibles([ligne, colonne]);
+                    if (prisesPosition.length > 0) {
+                        prises.push(...prisesPosition);
+                    }
+                }
             }
         }
 
-        // Déplace la pièce
-        this.plateau[ligneArrivee][colonneArrivee] = this.plateau[ligneDepart][colonneDepart];
-        this.plateau[ligneDepart][colonneDepart] = null;
-
-        // Effectue les prises
-        for (const [lignePrise, colonnePrise] of prises) {
-            this.plateau[lignePrise][colonnePrise] = null;
-            this.statistiques.prises[this.joueurActuel]++;
+        // S'il y a des prises possibles, elles sont obligatoires
+        if (prises.length > 0) {
+            return prises;
         }
 
-        // Vérifie la promotion en dame
-        if (this.doitEtrePromu(this.plateau[ligneArrivee][colonneArrivee], ligneArrivee)) {
-            this.plateau[ligneArrivee][colonneArrivee].promouvoir();
+        // S'il n'y a pas de prises, chercher les mouvements simples
+        for (let ligne = 0; ligne < this.TAILLE_PLATEAU; ligne++) {
+            for (let colonne = 0; colonne < this.TAILLE_PLATEAU; colonne++) {
+                const piece = this.plateau[ligne][colonne];
+                if (piece && piece.couleur === joueur) {
+                    const mouvementsPosition = this.getMouvementsValides([ligne, colonne]);
+                    mouvements.push(...mouvementsPosition);
+                }
+            }
         }
 
-        // Met à jour les statistiques
+        return mouvements;
+    }
+
+    deplacerPiece(mouvement) {
+        const { de, vers, prises = [] } = mouvement;
+        
+        // Sauvegarder l'état actuel avant le mouvement
+        this.historique.push({
+            plateau: this.clonePlateau(),
+            joueurActuel: this.joueurActuel,
+            mouvementsObligatoires: [...this.mouvementsObligatoires],
+            statistiques: { ...this.statistiques }
+        });
+
+        // Effectuer le mouvement
+        const piece = this.plateau[de[0]][de[1]];
+        this.plateau[de[0]][de[1]] = null;
+        this.plateau[vers[0]][vers[1]] = piece;
+
+        // Mettre à jour la position de la pièce
+        piece.ligne = vers[0];
+        piece.colonne = vers[1];
+
+        // Gérer les prises
+        if (prises && prises.length > 0) {
+            prises.forEach(prise => {
+                this.plateau[prise[0]][prise[1]] = null;
+                this.statistiques.prises[this.joueurActuel]++;
+            });
+        }
+
+        // Promotion en dame si nécessaire
+        if (this.doitEtrePromu(this.plateau[vers[0]][vers[1]], vers[0])) {
+            this.plateau[vers[0]][vers[1]].promouvoir();
+        }
+
+        // Mettre à jour les statistiques
         this.statistiques.nbCoups++;
 
-        // Vérifie s'il y a des prises supplémentaires possibles
-        const prisesSupplementaires = this.getPrisesPossibles([ligneArrivee, colonneArrivee]);
-        const peutContinuer = prisesSupplementaires.length > 0 && prises.length > 0;
+        // Changer de joueur
+        this.joueurActuel = this.joueurActuel === 1 ? 2 : 1;
 
-        // Change de joueur si pas de prise multiple possible
-        if (!peutContinuer) {
-            this.joueurActuel = this.joueurActuel === 1 ? 2 : 1;
+        // Mettre à jour les mouvements obligatoires
+        this.mouvementsObligatoires = this.calculerMouvementsObligatoires();
+
+        return true;
+    }
+
+    annulerDernierCoup() {
+        if (this.historique.length === 0) {
+            return false;
         }
 
-        return peutContinuer;
+        // Restaurer l'état précédent
+        const dernierEtat = this.historique.pop();
+        this.plateau = dernierEtat.plateau;
+        this.joueurActuel = dernierEtat.joueurActuel;
+        this.mouvementsObligatoires = dernierEtat.mouvementsObligatoires;
+        this.statistiques = dernierEtat.statistiques;
+
+        return true;
+    }
+
+    clonePlateau() {
+        // Vérifier si this.plateau existe
+        if (!this.plateau) {
+            return Array(this.TAILLE_PLATEAU)
+                .fill()
+                .map(() => Array(this.TAILLE_PLATEAU).fill(null));
+        }
+
+        // Créer un nouveau tableau avec la bonne taille
+        const nouveauPlateau = Array(this.TAILLE_PLATEAU)
+            .fill()
+            .map(() => Array(this.TAILLE_PLATEAU).fill(null));
+
+        // Copier les pions existants
+        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
+            // Vérifier si la ligne existe
+            if (!this.plateau[i]) continue;
+            
+            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+                // Vérifier si la case existe
+                if (!this.plateau[i][j]) continue;
+                
+                const pionOriginal = this.plateau[i][j];
+                if (pionOriginal) {
+                    // Créer une copie profonde du pion
+                    const pionCopie = new Pion(pionOriginal.couleur);
+                    pionCopie.estDame = pionOriginal.estDame;
+                    pionCopie.ligne = i;
+                    pionCopie.colonne = j;
+                    nouveauPlateau[i][j] = pionCopie;
+                }
+            }
+        }
+
+        return nouveauPlateau;
+    }
+
+    clone() {
+        const nouveauPlateau = new Plateau();
+        nouveauPlateau.TAILLE_PLATEAU = this.TAILLE_PLATEAU;
+        nouveauPlateau.plateau = this.clonePlateau();
+        nouveauPlateau.joueurActuel = this.joueurActuel;
+        nouveauPlateau.mouvementsObligatoires = [...this.mouvementsObligatoires];
+        nouveauPlateau.statistiques = JSON.parse(JSON.stringify(this.statistiques));
+        nouveauPlateau.historique = [];  // Ne pas copier l'historique
+        return nouveauPlateau;
+    }
+
+    copierPlateau() {
+        const nouveauPlateau = new Plateau();
+        nouveauPlateau.TAILLE_PLATEAU = this.TAILLE_PLATEAU;
+        nouveauPlateau.plateau = this.clonePlateau();
+        nouveauPlateau.joueurActuel = this.joueurActuel;
+        nouveauPlateau.mouvementsObligatoires = [...this.mouvementsObligatoires];
+        nouveauPlateau.statistiques = JSON.parse(JSON.stringify(this.statistiques));
+        return nouveauPlateau;
     }
 
     doitEtrePromu(pion, ligne) {
@@ -341,20 +437,35 @@ class Plateau {
         };
     }
 
-    copierPlateau() {
-        const nouveauPlateau = new Plateau();
-        nouveauPlateau.plateau = this.plateau.map(ligne => 
-            ligne.map(pion => {
-                if (!pion) return null;
-                const nouveauPion = new Pion(pion.couleur);
-                if (pion.estDame) nouveauPion.promouvoir();
-                return nouveauPion;
-            })
-        );
-        nouveauPlateau.joueurActuel = this.joueurActuel;
-        nouveauPlateau.statistiques = JSON.parse(JSON.stringify(this.statistiques));
-        nouveauPlateau.mouvementsObligatoires = [...this.mouvementsObligatoires];
-        return nouveauPlateau;
+    calculerMouvementsObligatoires() {
+        const mouvementsObligatoires = [];
+        const pieces = this.getPiecesJoueur(this.joueurActuel);
+
+        // Vérifier les prises possibles pour chaque pièce
+        pieces.forEach(piece => {
+            const prises = this.getPrisesPossibles([piece.ligne, piece.colonne]);
+            if (prises.length > 0) {
+                mouvementsObligatoires.push(...prises);
+            }
+        });
+
+        return mouvementsObligatoires;
+    }
+
+    getPiecesJoueur(joueur) {
+        const pieces = [];
+        for (let i = 0; i < this.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < this.TAILLE_PLATEAU; j++) {
+                if (this.plateau[i][j] && this.plateau[i][j].couleur === joueur) {
+                    pieces.push({
+                        ligne: i,
+                        colonne: j,
+                        ...this.plateau[i][j]
+                    });
+                }
+            }
+        }
+        return pieces;
     }
 }
 

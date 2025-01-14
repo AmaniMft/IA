@@ -1,8 +1,8 @@
 const BaseAI = require('./BaseAI');
 
 class MinMax extends BaseAI {
-    constructor(maxDepth = 4) {
-        super(maxDepth);
+    constructor(maxDepth = 4, heuristicFn = null) {
+        super(maxDepth, heuristicFn);
         this.maxDepth = maxDepth;
         this.nodesExplored = 0;
     }
@@ -14,7 +14,7 @@ class MinMax extends BaseAI {
             let meilleurMouvement = null;
 
             // Récupère tous les mouvements possibles
-            const mouvementsPossibles = this.getTousMouvementsPossibles(plateau);
+            const mouvementsPossibles = plateau.getMouvementsPossiblesPourJoueur(joueur);
             
             if (mouvementsPossibles.length === 0) {
                 return null;
@@ -38,11 +38,11 @@ class MinMax extends BaseAI {
                         meilleurMouvement = mouvement;
                     }
                 } catch (error) {
-                    console.log('Erreur lors de l\'évaluation du mouvement:', error);
+                    console.error('Erreur lors de l\'évaluation du mouvement:', error);
                     continue;
                 }
                 
-                this.nodesExplored++;
+                this.incrementNodesExplored();
             }
 
             return meilleurMouvement;
@@ -50,99 +50,43 @@ class MinMax extends BaseAI {
     }
 
     minmax(plateau, profondeur, estMax, joueurInitial) {
-        this.nodesExplored++;
-        
-        // Vérifie d'abord si la partie est terminée
-        if (plateau.estPartieTerminee()) {
-            const gagnant = plateau.getGagnant();
-            if (gagnant === joueurInitial) return 1000 + profondeur;
-            if (gagnant === (3 - joueurInitial)) return -1000 - profondeur;
-            return 0; // Match nul
+        this.incrementNodesExplored();
+
+        // Si on atteint la profondeur maximale ou fin de partie
+        if (profondeur === 0 || plateau.estPartieTerminee()) {
+            return this.evaluatePosition(plateau, joueurInitial);
         }
 
-        // Si on atteint la profondeur maximale
-        if (profondeur === 0) {
-            return this.evaluerPosition(plateau, joueurInitial);
-        }
-
-        const mouvementsPossibles = this.getTousMouvementsPossibles(plateau);
+        const joueurActuel = plateau.joueurActuel;
+        const mouvementsPossibles = plateau.getMouvementsPossiblesPourJoueur(joueurActuel);
 
         // Si aucun mouvement possible
         if (mouvementsPossibles.length === 0) {
-            return estMax ? -1000 - profondeur : 1000 + profondeur;
+            return this.evaluatePosition(plateau, joueurInitial);
         }
 
         if (estMax) {
             let meilleurScore = -Infinity;
             for (const mouvement of mouvementsPossibles) {
-                try {
-                    const plateauTemp = plateau.copierPlateau();
-                    const continuerPrise = plateauTemp.deplacerPiece(mouvement);
-                    
-                    // Si prise multiple, reste au même niveau de profondeur
-                    const nouvelleProf = continuerPrise ? profondeur : profondeur - 1;
-                    const score = this.minmax(plateauTemp, nouvelleProf, !estMax, joueurInitial);
-                    
-                    meilleurScore = Math.max(meilleurScore, score);
-                } catch (error) {
-                    continue;
-                }
+                const plateauTemp = plateau.copierPlateau();
+                plateauTemp.deplacerPiece(mouvement);
+                const score = this.minmax(plateauTemp, profondeur - 1, false, joueurInitial);
+                meilleurScore = Math.max(meilleurScore, score);
             }
             return meilleurScore;
         } else {
             let pireScore = Infinity;
             for (const mouvement of mouvementsPossibles) {
-                try {
-                    const plateauTemp = plateau.copierPlateau();
-                    const continuerPrise = plateauTemp.deplacerPiece(mouvement);
-                    
-                    // Si prise multiple, reste au même niveau de profondeur
-                    const nouvelleProf = continuerPrise ? profondeur : profondeur - 1;
-                    const score = this.minmax(plateauTemp, nouvelleProf, !estMax, joueurInitial);
-                    
-                    pireScore = Math.min(pireScore, score);
-                } catch (error) {
-                    continue;
-                }
+                const plateauTemp = plateau.copierPlateau();
+                plateauTemp.deplacerPiece(mouvement);
+                const score = this.minmax(plateauTemp, profondeur - 1, true, joueurInitial);
+                pireScore = Math.min(pireScore, score);
             }
             return pireScore;
         }
     }
 
-    getTousMouvementsPossibles(plateau) {
-        const mouvements = [];
-        const joueur = plateau.joueurActuel;
-        
-        // Vérifie d'abord s'il y a des prises obligatoires
-        for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
-            for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
-                const piece = plateau.plateau[i][j];
-                if (piece && piece.couleur === joueur) {
-                    const prises = plateau.getPrisesPossibles([i, j]);
-                    if (prises.length > 0) {
-                        mouvements.push(...prises);
-                    }
-                }
-            }
-        }
-        
-        // S'il n'y a pas de prises obligatoires, on cherche les mouvements simples
-        if (mouvements.length === 0) {
-            for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
-                for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
-                    const piece = plateau.plateau[i][j];
-                    if (piece && piece.couleur === joueur) {
-                        const mouvementsValides = plateau.getMouvementsValides([i, j]);
-                        mouvements.push(...mouvementsValides);
-                    }
-                }
-            }
-        }
-        
-        return mouvements;
-    }
-
-    evaluerPosition(plateau, joueur) {
+    evaluatePosition(plateau, joueur) {
         let score = 0;
         const adversaire = 3 - joueur;
         
@@ -188,7 +132,7 @@ class MinMax extends BaseAI {
         }
         
         // Bonus pour la mobilité
-        const mouvementsPossibles = this.getTousMouvementsPossibles(plateau);
+        const mouvementsPossibles = plateau.getMouvementsPossiblesPourJoueur(joueur);
         score += mouvementsPossibles.length * 0.1;
         
         // Bonus pour la protection des pièces
@@ -236,6 +180,10 @@ class MinMax extends BaseAI {
         console.log(`Temps d'exécution : ${endTime - startTime}ms`);
         console.log(`Noeuds explorés : ${this.nodesExplored}`);
         return result;
+    }
+
+    incrementNodesExplored() {
+        this.nodesExplored++;
     }
 }
 
