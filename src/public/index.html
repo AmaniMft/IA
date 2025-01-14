@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu de Dames</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="game-container">
+            <div id="board"></div>
+            <div id="status">En attente de démarrage...</div>
+        </div>
+        
+        <div class="controls">
+            <h3>Contrôles</h3>
+            <select id="gameMode">
+                <option value="human-ai">Humain vs IA</option>
+                <option value="ai-ai">IA vs IA</option>
+            </select>
+            
+            <select id="aiAlgorithm">
+                <option value="MinMax">MinMax</option>
+                <option value="AlphaBeta">AlphaBeta</option>
+            </select>
+            
+            <select id="difficulty">
+                <option value="2">Facile (Profondeur 2)</option>
+                <option value="4">Moyen (Profondeur 4)</option>
+                <option value="6">Difficile (Profondeur 6)</option>
+            </select>
+            
+            <button id="newGame">Nouvelle Partie</button>
+
+            <div class="statistics">
+                <h3>Statistiques</h3>
+                <div class="stat-item">
+                    <span>Coups joués:</span>
+                    <span id="nbCoups">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Prises Noirs:</span>
+                    <span id="prisesNoir">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Prises Blancs:</span>
+                    <span id="prisesBlanc">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Temps Noirs:</span>
+                    <span id="tempsNoir">0s</span>
+                </div>
+                <div class="stat-item">
+                    <span>Temps Blancs:</span>
+                    <span id="tempsBlanc">0s</span>
+                </div>
+            </div>
+
+            <div id="movesList"></div>
+        </div>
+    </div>
+    
+    <script src="js/game.js"></script>
+</body>
+</html>
