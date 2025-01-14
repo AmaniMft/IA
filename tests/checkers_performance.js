@@ -2,219 +2,197 @@ const MinMax = require('../src/ai/MinMax');
 const AlphaBeta = require('../src/ai/AlphaBeta');
 const Plateau = require('../src/game/Plateau');
 const Heuristics = require('../src/ai/heuristics');
-const { TEST_CONFIG } = require('./config');
 
 class CheckersPerformance {
-    constructor() {
-        this.results = {
-            heuristicTests: [],
-            depthTests: [],
-            algorithmTests: [],
-            gridSizeTests: []
-        };
-    }
-
-    async runAllTests() {
-        console.log("=== TESTS DE PERFORMANCE DES DAMES ===\n");
-
-        await this.compareHeuristics();
-        await this.testDepthEffect();
-        await this.compareAlgorithms();
-        await this.testGridSizes();
-
-        this.generateFinalReport();
-    }
-
-    async compareHeuristics() {
-        console.log("1. COMPARAISON DES HEURISTIQUES");
-        const heuristics = [
-            { name: "basic", function: "basic" },
-            { name: "position", function: "position" }
-        ];
-
-        for (const heuristic of heuristics) {
-            console.log(`\nTest heuristique: ${heuristic.name}`);
-            const results = await this.playGames({
-                heuristic: heuristic.function,
-                depth: TEST_CONFIG.DEFAULT_DEPTH,
-                algorithm: 'alphaBeta',
-                games: TEST_CONFIG.GAMES_PER_TEST,
-                batchSize: TEST_CONFIG.BATCH_SIZE
-            });
-            
-            this.results.heuristicTests.push({
-                heuristic: heuristic.name,
-                ...results
-            });
-        }
-    }
-
-    async testDepthEffect() {
-        console.log("\n2. EFFET DE LA PROFONDEUR");
-        const depths = [2, 3, 4, 5];
-
-        for (const depth of depths) {
-            console.log(`\nTest profondeur: ${depth}`);
-            const results = await this.playGames({
-                heuristic: "position",
-                depth: depth,
-                algorithm: 'alphaBeta',
-                games: TEST_CONFIG.GAMES_PER_TEST,
-                batchSize: TEST_CONFIG.BATCH_SIZE
-            });
-
-            this.results.depthTests.push({
-                depth: depth,
-                ...results
-            });
-        }
-    }
-
-    async compareAlgorithms() {
-        console.log("\n3. MINMAX VS ALPHA-BETA");
-        const algorithms = ['minmax', 'alphaBeta'];
-
-        for (const algo of algorithms) {
-            console.log(`\nTest algorithme: ${algo}`);
-            const results = await this.playGames({
-                heuristic: "position",
-                depth: TEST_CONFIG.DEFAULT_DEPTH,
-                algorithm: algo,
-                games: TEST_CONFIG.GAMES_PER_TEST,
-                batchSize: TEST_CONFIG.BATCH_SIZE
-            });
-
-            this.results.algorithmTests.push({
-                algorithm: algo,
-                ...results
-            });
-        }
-    }
-
-    async testGridSizes() {
-        console.log("\n4. IMPACT TAILLE DU PLATEAU");
-        const sizes = [6, 8, 10];
-
-        for (const size of sizes) {
-            console.log(`\nTest taille: ${size}x${size}`);
-            const results = await this.playGames({
-                heuristic: "position",
-                depth: TEST_CONFIG.DEFAULT_DEPTH,
-                algorithm: 'alphaBeta',
-                gridSize: size,
-                games: TEST_CONFIG.GAMES_PER_TEST,
-                batchSize: TEST_CONFIG.BATCH_SIZE
-            });
-
-            this.results.gridSizeTests.push({
-                size: size,
-                ...results
-            });
-        }
-    }
-
-    async playGames(config) {
-        let totalWins = 0;
-        let totalTime = 0;
-        let totalMemory = 0;
-        let totalNodes = 0;
+    async playGame(player1, player2, size = 8) {
+        const plateau = new Plateau();
+        plateau.TAILLE_PLATEAU = size;
         
-        const batches = Math.ceil(config.games / config.batchSize);
-
-        for (let batch = 0; batch < batches; batch++) {
-            console.log(`  Lot ${batch + 1}/${batches}`);
-            
-            const startMemory = process.memoryUsage().heapUsed;
-            const startTime = performance.now();
-
-            for (let game = 0; game < config.batchSize; game++) {
-                const gameResult = await this.playSingleGame(config);
-                totalWins += gameResult.winner === 1 ? 1 : 0;
-                totalNodes += gameResult.nodesExplored;
-            }
-
-            totalTime += performance.now() - startTime;
-            totalMemory += process.memoryUsage().heapUsed - startMemory;
-        }
-
-        return {
-            wins: totalWins,
-            winRate: (totalWins / config.games) * 100,
-            avgTime: totalTime / config.games,
-            avgMemory: totalMemory / config.games,
-            avgNodes: totalNodes / config.games
-        };
-    }
-
-    createPlayer(config) {
-        const AIClass = config.algorithm === 'minmax' ? MinMax : AlphaBeta;
-        return new AIClass(config.depth, Heuristics[config.heuristic]);
-    }
-
-    async playSingleGame(config) {
-        const player1 = this.createPlayer(config);
-        const player2 = this.createPlayer({...config, algorithm: 'alphaBeta'});
-        const plateau = new Plateau(config.gridSize || TEST_CONFIG.DEFAULT_BOARD_SIZE);
-
         let moves = 0;
-        let nodesExplored = 0;
-        
-        while (!plateau.estPartieTerminee() && moves < 200) {
+        let startMemory = process.memoryUsage().heapUsed;
+        let stats = {
+            player1: { time: 0, nodes: 0, prunedNodes: 0 },
+            player2: { time: 0, nodes: 0, prunedNodes: 0 }
+        };
+
+        while (!plateau.estPartieTerminee() && moves < 100) {
             const currentPlayer = plateau.joueurActuel === 1 ? player1 : player2;
+            const statsKey = plateau.joueurActuel === 1 ? 'player1' : 'player2';
+            
+            const startTime = performance.now();
             const move = await currentPlayer.findBestMove(plateau);
+            stats[statsKey].time += performance.now() - startTime;
             
             if (!move) break;
             
-            nodesExplored += currentPlayer.getNodesExplored();
+            stats[statsKey].nodes += currentPlayer.getNodesExplored();
+            if (currentPlayer instanceof AlphaBeta) {
+                stats[statsKey].prunedNodes += currentPlayer.prunedNodes;
+            }
+            
             plateau.deplacerPiece(move);
             moves++;
         }
 
+        const memoryUsed = process.memoryUsage().heapUsed - startMemory;
+        const winner = plateau.getGagnant();
+
+        // Compter les pièces restantes
+        let pieces = { player1: 0, player2: 0 };
+        for (let i = 0; i < plateau.TAILLE_PLATEAU; i++) {
+            for (let j = 0; j < plateau.TAILLE_PLATEAU; j++) {
+                const piece = plateau.plateau[i][j];
+                if (piece) {
+                    if (piece.joueur === 1) pieces.player1++;
+                    else pieces.player2++;
+                }
+            }
+        }
+
         return {
-            winner: plateau.getGagnant(),
-            nodesExplored
+            winner,
+            moves,
+            memoryUsed,
+            stats,
+            pieces
         };
     }
 
-    generateFinalReport() {
-        console.log("\n=== RAPPORT FINAL ===");
+    async compareHeuristics(numGames = 100) {
+        console.log(`\n=== Test des heuristiques (${numGames} parties) ===`);
+        const heuristics = ['basic', 'position', 'mobility'];
+        const results = {};
 
-        // 1. Rapport heuristiques
-        console.log("\n1. Comparaison des heuristiques:");
-        this.results.heuristicTests.forEach(result => {
-            console.log(`\n${result.heuristic}:`);
-            console.log(`- Taux de victoire: ${result.winRate.toFixed(1)}%`);
-            console.log(`- Temps moyen: ${result.avgTime.toFixed(2)}ms`);
-            console.log(`- Nœuds explorés: ${Math.round(result.avgNodes)}`);
-            console.log(`- Mémoire moyenne: ${(result.avgMemory/1024/1024).toFixed(2)}MB`);
-        });
+        for (const h1 of heuristics) {
+            for (const h2 of heuristics) {
+                if (h1 === h2) continue;
+                
+                const player1 = new AlphaBeta(3, Heuristics[h1]);
+                const player2 = new AlphaBeta(3, Heuristics[h2]);
+                
+                let stats = {
+                    wins: 0,
+                    avgTime: 0,
+                    avgNodes: 0,
+                    avgMoves: 0
+                };
 
-        // 2. Rapport profondeurs
-        console.log("\n2. Impact de la profondeur:");
-        this.results.depthTests.forEach(result => {
-            console.log(`\nProfondeur ${result.depth}:`);
-            console.log(`- Taux de victoire: ${result.winRate.toFixed(1)}%`);
-            console.log(`- Temps moyen: ${result.avgTime.toFixed(2)}ms`);
-            console.log(`- Nœuds explorés: ${Math.round(result.avgNodes)}`);
-            console.log(`- Mémoire moyenne: ${(result.avgMemory/1024/1024).toFixed(2)}MB`);
-        });
+                console.log(`\nTest: ${h1} vs ${h2}`);
+                for (let i = 0; i < numGames; i++) {
+                    if (i % 10 === 0) process.stdout.write('.');
+                    const game = await this.playGame(player1, player2);
+                    if (game.winner === 1) stats.wins++;
+                    stats.avgTime += game.stats.player1.time;
+                    stats.avgNodes += game.stats.player1.nodes;
+                    stats.avgMoves += game.moves;
+                }
 
-        // 3. Rapport algorithmes
-        console.log("\n3. MinMax vs Alpha-Beta:");
-        const [minmax, alphaBeta] = this.results.algorithmTests;
-        const speedup = (minmax.avgTime - alphaBeta.avgTime) / minmax.avgTime * 100;
-        console.log(`Gain en temps avec Alpha-Beta: ${speedup.toFixed(1)}%`);
-        console.log(`Réduction des nœuds: ${((1 - alphaBeta.avgNodes/minmax.avgNodes)*100).toFixed(1)}%`);
-        console.log(`Différence mémoire: ${((alphaBeta.avgMemory - minmax.avgMemory)/1024/1024).toFixed(2)}MB`);
+                stats.avgTime /= numGames;
+                stats.avgNodes /= numGames;
+                stats.avgMoves /= numGames;
+                results[`${h1}_vs_${h2}`] = stats;
+                
+                console.log(`\nRésultats ${h1} vs ${h2}:`);
+                console.log(`- Victoires: ${stats.wins}/${numGames} (${(stats.wins/numGames*100).toFixed(1)}%)`);
+                console.log(`- Temps moyen: ${stats.avgTime.toFixed(2)}ms`);
+                console.log(`- Nœuds moyens: ${Math.round(stats.avgNodes)}`);
+                console.log(`- Coups moyens: ${Math.round(stats.avgMoves)}`);
+            }
+        }
+        return results;
+    }
 
-        // 4. Rapport tailles
-        console.log("\n4. Impact de la taille du plateau:");
-        this.results.gridSizeTests.forEach(result => {
-            console.log(`\nTaille ${result.size}x${result.size}:`);
-            console.log(`- Temps moyen: ${result.avgTime.toFixed(2)}ms`);
-            console.log(`- Mémoire moyenne: ${(result.avgMemory/1024/1024).toFixed(2)}MB`);
-            console.log(`- Nœuds explorés: ${Math.round(result.avgNodes)}`);
-        });
+    async testDepthEffect(maxDepth = 5, numGames = 50) {
+        console.log(`\n=== Test de l'effet de la profondeur (${numGames} parties par profondeur) ===`);
+        const results = {};
+
+        for (let depth = 2; depth <= maxDepth; depth++) {
+            console.log(`\nTest profondeur ${depth}:`);
+            const minmax = new MinMax(depth, Heuristics.position);
+            const alphaBeta = new AlphaBeta(depth, Heuristics.position);
+            
+            let stats = {
+                minmax: { time: 0, nodes: 0, memory: 0 },
+                alphaBeta: { time: 0, nodes: 0, prunedNodes: 0, memory: 0 }
+            };
+
+            for (let i = 0; i < numGames; i++) {
+                if (i % 5 === 0) process.stdout.write('.');
+                const game = await this.playGame(minmax, alphaBeta);
+                
+                stats.minmax.time += game.stats.player1.time;
+                stats.minmax.nodes += game.stats.player1.nodes;
+                stats.minmax.memory += game.memoryUsed;
+                
+                stats.alphaBeta.time += game.stats.player2.time;
+                stats.alphaBeta.nodes += game.stats.player2.nodes;
+                stats.alphaBeta.prunedNodes += game.stats.player2.prunedNodes;
+                stats.alphaBeta.memory += game.memoryUsed;
+            }
+
+            // Moyennes
+            for (const algo of ['minmax', 'alphaBeta']) {
+                stats[algo].time /= numGames;
+                stats[algo].nodes /= numGames;
+                stats[algo].memory /= numGames;
+                if (algo === 'alphaBeta') {
+                    stats[algo].prunedNodes /= numGames;
+                }
+            }
+
+            results[depth] = stats;
+            
+            console.log('\nRésultats:');
+            console.log('MinMax:');
+            console.log(`- Temps: ${stats.minmax.time.toFixed(2)}ms`);
+            console.log(`- Nœuds: ${Math.round(stats.minmax.nodes)}`);
+            console.log(`- Mémoire: ${(stats.minmax.memory/1024/1024).toFixed(2)}MB`);
+            
+            console.log('\nAlpha-Beta:');
+            console.log(`- Temps: ${stats.alphaBeta.time.toFixed(2)}ms`);
+            console.log(`- Nœuds: ${Math.round(stats.alphaBeta.nodes)}`);
+            console.log(`- Nœuds élagués: ${Math.round(stats.alphaBeta.prunedNodes)}`);
+            console.log(`- Mémoire: ${(stats.alphaBeta.memory/1024/1024).toFixed(2)}MB`);
+            
+            const speedup = ((stats.minmax.time - stats.alphaBeta.time) / stats.minmax.time * 100);
+            console.log(`\nGain en performance: ${speedup.toFixed(1)}%`);
+        }
+        return results;
+    }
+
+    async testGridSizes(sizes = [6, 8, 10], numGames = 50) {
+        console.log(`\n=== Test de l'effet de la taille (${numGames} parties par taille) ===`);
+        const results = {};
+
+        for (const size of sizes) {
+            console.log(`\nTest taille ${size}x${size}:`);
+            const alphaBeta = new AlphaBeta(3, Heuristics.position);
+            let stats = { time: 0, nodes: 0, memory: 0, moves: 0 };
+
+            for (let i = 0; i < numGames; i++) {
+                if (i % 5 === 0) process.stdout.write('.');
+                const game = await this.playGame(alphaBeta, alphaBeta, size);
+                stats.time += game.stats.player1.time + game.stats.player2.time;
+                stats.nodes += game.stats.player1.nodes + game.stats.player2.nodes;
+                stats.memory += game.memoryUsed;
+                stats.moves += game.moves;
+            }
+
+            // Moyennes
+            stats.time /= (numGames * 2);  // Divisé par 2 car on compte les deux joueurs
+            stats.nodes /= (numGames * 2);
+            stats.memory /= numGames;
+            stats.moves /= numGames;
+
+            results[size] = stats;
+            
+            console.log('\nRésultats:');
+            console.log(`- Temps moyen par coup: ${stats.time.toFixed(2)}ms`);
+            console.log(`- Nœuds explorés par coup: ${Math.round(stats.nodes)}`);
+            console.log(`- Mémoire utilisée: ${(stats.memory/1024/1024).toFixed(2)}MB`);
+            console.log(`- Nombre moyen de coups: ${Math.round(stats.moves)}`);
+        }
+        return results;
     }
 }
 
