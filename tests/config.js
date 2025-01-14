@@ -1,12 +1,8 @@
 module.exports = {
-    PERFORMANCE_TEST_CONFIG: {
-        NUM_GAMES: 10,            // Réduit à 10 parties pour des tests rapides
-        DEPTHS: [2, 3],          // Limité à 2 profondeurs
-        BOARD_SIZES: [8],        // Une seule taille de plateau
-        TIMEOUT_MS: 10000,       // Timeout réduit
-        HEURISTICS: [
-            'BASIC',
-            'ADVANCED'
-        ]
+    TEST_CONFIG: {
+        GAMES_PER_TEST: 1000,    // Nombre de parties par test
+        BATCH_SIZE: 50,          // Taille des lots pour la gestion mémoire
+        DEFAULT_DEPTH: 3,        // Profondeur par défaut pour l'algorithme
+        DEFAULT_BOARD_SIZE: 8    // Taille par défaut du plateau
     }
 };

@@ -1,241 +1,221 @@
-const config = require('./config');
-const Plateau = require('../src/game/Plateau');
 const MinMax = require('../src/ai/MinMax');
 const AlphaBeta = require('../src/ai/AlphaBeta');
-const LasVegas = require('../src/ai/LasVegas');
-const MonteCarlo = require('../src/ai/MonteCarlo');
+const Plateau = require('../src/game/Plateau');
 const Heuristics = require('../src/ai/heuristics');
+const { TEST_CONFIG } = require('./config');
 
-class CheckersPerformanceTester {
+class CheckersPerformance {
     constructor() {
         this.results = {
-            minmax: {},
-            alphaBeta: {},
-            lasVegas: {},
-            monteCarlo: {}
+            heuristicTests: [],
+            depthTests: [],
+            algorithmTests: [],
+            gridSizeTests: []
         };
     }
 
-    async runTests() {
-        console.log('\n=== Tests de Performance du Jeu de Dames ===\n');
-        
-        // Test pour chaque taille de plateau
-        for (const boardSize of config.PERFORMANCE_TEST_CONFIG.BOARD_SIZES) {
-            console.log(`\n=== Tests sur plateau ${boardSize}x${boardSize} ===`);
+    async runAllTests() {
+        console.log("=== TESTS DE PERFORMANCE DES DAMES ===\n");
+
+        await this.compareHeuristics();
+        await this.testDepthEffect();
+        await this.compareAlgorithms();
+        await this.testGridSizes();
+
+        this.generateFinalReport();
+    }
+
+    async compareHeuristics() {
+        console.log("1. COMPARAISON DES HEURISTIQUES");
+        const heuristics = [
+            { name: "basic", function: "basic" },
+            { name: "position", function: "position" }
+        ];
+
+        for (const heuristic of heuristics) {
+            console.log(`\nTest heuristique: ${heuristic.name}`);
+            const results = await this.playGames({
+                heuristic: heuristic.function,
+                depth: TEST_CONFIG.DEFAULT_DEPTH,
+                algorithm: 'alphaBeta',
+                games: TEST_CONFIG.GAMES_PER_TEST,
+                batchSize: TEST_CONFIG.BATCH_SIZE
+            });
             
-            // Test pour chaque profondeur
-            for (const depth of config.PERFORMANCE_TEST_CONFIG.DEPTHS) {
-                console.log(`\n--- Tests avec profondeur ${depth} ---`);
-                
-                // Test pour chaque heuristique
-                for (const heuristic of config.PERFORMANCE_TEST_CONFIG.HEURISTICS) {
-                    console.log(`\nTest avec heuristique ${heuristic}`);
-                    
-                    const heuristicFn = Heuristics.getHeuristic(heuristic);
-                    const minmax = new MinMax(depth, heuristicFn);
-                    const alphaBeta = new AlphaBeta(depth, heuristicFn);
-                    const lasVegas = new LasVegas(depth, heuristicFn);
-                    const monteCarlo = new MonteCarlo(depth, heuristicFn);
-                    
-                    const configKey = `${boardSize}x${boardSize}_d${depth}_${heuristic}`;
-                    
-                    // Test MinMax vs AlphaBeta
-                    console.log('\nMinMax vs AlphaBeta :');
-                    this.results.minmax[configKey] = await this.testMatch(minmax, alphaBeta, boardSize);
-                    
-                    // Test AlphaBeta vs MinMax
-                    console.log('\nAlphaBeta vs MinMax :');
-                    this.results.alphaBeta[configKey] = await this.testMatch(alphaBeta, minmax, boardSize);
-                    
-                    // Test LasVegas vs AlphaBeta
-                    console.log('\nLasVegas vs AlphaBeta :');
-                    this.results.lasVegas[configKey] = await this.testMatch(lasVegas, alphaBeta, boardSize);
-                    
-                    // Test MonteCarlo vs AlphaBeta
-                    console.log('\nMonteCarlo vs AlphaBeta :');
-                    this.results.monteCarlo[configKey] = await this.testMatch(monteCarlo, alphaBeta, boardSize);
-                }
-            }
+            this.results.heuristicTests.push({
+                heuristic: heuristic.name,
+                ...results
+            });
         }
-        
-        this.printResults();
     }
 
-    async testMatch(player1, player2, boardSize) {
-        console.log(`Test en cours: ${player1.constructor.name} vs ${player2.constructor.name}`);
-        
-        const results = {
-            executionTime: 0,
-            nodesExplored: 0,
-            memoryUsed: 0,
-            winRate: 0,
-            totalGames: 0,
-            draws: 0
-        };
+    async testDepthEffect() {
+        console.log("\n2. EFFET DE LA PROFONDEUR");
+        const depths = [2, 3, 4, 5];
 
-        const totalGames = config.PERFORMANCE_TEST_CONFIG.NUM_GAMES;
-        console.log(`Début des ${totalGames} parties...`);
+        for (const depth of depths) {
+            console.log(`\nTest profondeur: ${depth}`);
+            const results = await this.playGames({
+                heuristic: "position",
+                depth: depth,
+                algorithm: 'alphaBeta',
+                games: TEST_CONFIG.GAMES_PER_TEST,
+                batchSize: TEST_CONFIG.BATCH_SIZE
+            });
+
+            this.results.depthTests.push({
+                depth: depth,
+                ...results
+            });
+        }
+    }
+
+    async compareAlgorithms() {
+        console.log("\n3. MINMAX VS ALPHA-BETA");
+        const algorithms = ['minmax', 'alphaBeta'];
+
+        for (const algo of algorithms) {
+            console.log(`\nTest algorithme: ${algo}`);
+            const results = await this.playGames({
+                heuristic: "position",
+                depth: TEST_CONFIG.DEFAULT_DEPTH,
+                algorithm: algo,
+                games: TEST_CONFIG.GAMES_PER_TEST,
+                batchSize: TEST_CONFIG.BATCH_SIZE
+            });
+
+            this.results.algorithmTests.push({
+                algorithm: algo,
+                ...results
+            });
+        }
+    }
+
+    async testGridSizes() {
+        console.log("\n4. IMPACT TAILLE DU PLATEAU");
+        const sizes = [6, 8, 10];
+
+        for (const size of sizes) {
+            console.log(`\nTest taille: ${size}x${size}`);
+            const results = await this.playGames({
+                heuristic: "position",
+                depth: TEST_CONFIG.DEFAULT_DEPTH,
+                algorithm: 'alphaBeta',
+                gridSize: size,
+                games: TEST_CONFIG.GAMES_PER_TEST,
+                batchSize: TEST_CONFIG.BATCH_SIZE
+            });
+
+            this.results.gridSizeTests.push({
+                size: size,
+                ...results
+            });
+        }
+    }
+
+    async playGames(config) {
+        let totalWins = 0;
+        let totalTime = 0;
+        let totalMemory = 0;
+        let totalNodes = 0;
         
-        const startMemoryBaseline = process.memoryUsage().heapUsed;
-        
-        for (let i = 0; i < totalGames; i++) {
-            const plateau = new Plateau();
-            plateau.TAILLE_PLATEAU = boardSize;
+        const batches = Math.ceil(config.games / config.batchSize);
+
+        for (let batch = 0; batch < batches; batch++) {
+            console.log(`  Lot ${batch + 1}/${batches}`);
             
+            const startMemory = process.memoryUsage().heapUsed;
             const startTime = performance.now();
-            const gameResult = await this.playGame(player1, player2, plateau);
-            const endTime = performance.now();
-            
-            const gameTimeInMs = endTime - startTime;
-            results.executionTime += gameTimeInMs;
-            results.nodesExplored += gameResult.nodesExplored;
-            
-            if (gameResult.winner === 1) {
-                results.winRate++;
-            } else if (gameResult.winner === null) {
-                results.draws++;
+
+            for (let game = 0; game < config.batchSize; game++) {
+                const gameResult = await this.playSingleGame(config);
+                totalWins += gameResult.winner === 1 ? 1 : 0;
+                totalNodes += gameResult.nodesExplored;
             }
-            
-            results.totalGames++;
-            
-            // Afficher la progression
-            console.log(`Partie ${i + 1}/${totalGames} - ${gameTimeInMs.toFixed(2)}ms - ${
-                gameResult.winner === 1 ? 'Victoire' : 
-                gameResult.winner === 2 ? 'Défaite' : 
-                'Match nul'}`);
+
+            totalTime += performance.now() - startTime;
+            totalMemory += process.memoryUsage().heapUsed - startMemory;
         }
 
-        results.memoryUsed = process.memoryUsage().heapUsed - startMemoryBaseline;
-
-        // Calcul des moyennes
-        if (results.totalGames > 0) {
-            results.executionTime /= results.totalGames;
-            results.nodesExplored = Math.floor(results.nodesExplored / results.totalGames);
-            results.winRate = (results.winRate / results.totalGames) * 100;
-        }
-
-        // Afficher les résultats du match
-        console.log('\nRésultats du match :');
-        console.log(`Temps moyen par partie: ${results.executionTime.toFixed(2)}ms`);
-        console.log(`Nœuds explorés en moyenne: ${results.nodesExplored}`);
-        console.log(`Taux de victoire: ${results.winRate.toFixed(1)}%`);
-        console.log(`Matchs nuls: ${results.draws}`);
-        console.log(`Mémoire utilisée: ${(results.memoryUsed / 1024 / 1024).toFixed(2)}MB\n`);
-
-        return results;
+        return {
+            wins: totalWins,
+            winRate: (totalWins / config.games) * 100,
+            avgTime: totalTime / config.games,
+            avgMemory: totalMemory / config.games,
+            avgNodes: totalNodes / config.games
+        };
     }
 
-    async playGame(player1, player2, plateau) {
-        const results = {
-            executionTime: 0,
-            nodesExplored: 0,
-            winner: null
-        };
+    createPlayer(config) {
+        const AIClass = config.algorithm === 'minmax' ? MinMax : AlphaBeta;
+        return new AIClass(config.depth, Heuristics[config.heuristic]);
+    }
+
+    async playSingleGame(config) {
+        const player1 = this.createPlayer(config);
+        const player2 = this.createPlayer({...config, algorithm: 'alphaBeta'});
+        const plateau = new Plateau(config.gridSize || TEST_CONFIG.DEFAULT_BOARD_SIZE);
+
+        let moves = 0;
+        let nodesExplored = 0;
         
-        const startTime = Date.now();
-        let moveCount = 0;
-        const maxMoves = 100; // Pour éviter les parties infinies
-        
-        while (!plateau.estPartieTerminee() && moveCount < maxMoves) {
-            if (Date.now() - startTime > config.PERFORMANCE_TEST_CONFIG.TIMEOUT_MS) {
-                break;
-            }
-            
+        while (!plateau.estPartieTerminee() && moves < 200) {
             const currentPlayer = plateau.joueurActuel === 1 ? player1 : player2;
-            
-            const moveStartTime = performance.now();
-            const move = currentPlayer.findBestMove(plateau);
-            const moveEndTime = performance.now();
+            const move = await currentPlayer.findBestMove(plateau);
             
             if (!move) break;
             
-            results.executionTime += moveEndTime - moveStartTime;
-            results.nodesExplored += currentPlayer.getNodesExplored();
-            
+            nodesExplored += currentPlayer.getNodesExplored();
             plateau.deplacerPiece(move);
-            moveCount++;
+            moves++;
         }
-        
-        results.winner = plateau.getGagnant();
-        return results;
+
+        return {
+            winner: plateau.getGagnant(),
+            nodesExplored
+        };
     }
 
-    printResults() {
-        console.log('\n=== Résultats Finaux des Tests ===\n');
+    generateFinalReport() {
+        console.log("\n=== RAPPORT FINAL ===");
 
-        // 1. Comparaison des algorithmes
-        console.log('1. Comparaison des Algorithmes :');
-        for (const [config, minmaxResult] of Object.entries(this.results.minmax)) {
-            console.log(`\nConfiguration: ${config}`);
-            
-            const alphaBetaResult = this.results.alphaBeta[config];
-            const lasVegasResult = this.results.lasVegas[config];
-            const monteCarloResult = this.results.monteCarlo[config];
-            
-            if (minmaxResult && alphaBetaResult) {
-                console.log('\nMinMax vs AlphaBeta :');
-                console.log(`- MinMax: ${minmaxResult.winRate.toFixed(1)}% victoires, ${minmaxResult.executionTime.toFixed(2)}ms`);
-                console.log(`- AlphaBeta: ${alphaBetaResult.winRate.toFixed(1)}% victoires, ${alphaBetaResult.executionTime.toFixed(2)}ms`);
-                
-                const timeGain = ((minmaxResult.executionTime - alphaBetaResult.executionTime) / minmaxResult.executionTime * 100).toFixed(1);
-                const nodeGain = ((minmaxResult.nodesExplored - alphaBetaResult.nodesExplored) / minmaxResult.nodesExplored * 100).toFixed(1);
-                
-                console.log(`\nGains avec AlphaBeta :`);
-                console.log(`- Temps: ${timeGain}%`);
-                console.log(`- Nœuds: ${nodeGain}%`);
-            }
-            
-            if (lasVegasResult) {
-                console.log('\nLasVegas vs AlphaBeta :');
-                console.log(`- LasVegas: ${lasVegasResult.winRate.toFixed(1)}% victoires, ${lasVegasResult.executionTime.toFixed(2)}ms`);
-            }
-            
-            if (monteCarloResult) {
-                console.log('\nMonteCarlo vs AlphaBeta :');
-                console.log(`- MonteCarlo: ${monteCarloResult.winRate.toFixed(1)}% victoires, ${monteCarloResult.executionTime.toFixed(2)}ms`);
-            }
-        }
+        // 1. Rapport heuristiques
+        console.log("\n1. Comparaison des heuristiques:");
+        this.results.heuristicTests.forEach(result => {
+            console.log(`\n${result.heuristic}:`);
+            console.log(`- Taux de victoire: ${result.winRate.toFixed(1)}%`);
+            console.log(`- Temps moyen: ${result.avgTime.toFixed(2)}ms`);
+            console.log(`- Nœuds explorés: ${Math.round(result.avgNodes)}`);
+            console.log(`- Mémoire moyenne: ${(result.avgMemory/1024/1024).toFixed(2)}MB`);
+        });
 
-        // 2. Impact de la profondeur
-        console.log('\n2. Impact de la Profondeur :');
-        for (const size of config.PERFORMANCE_TEST_CONFIG.BOARD_SIZES) {
-            console.log(`\nTaille du plateau : ${size}x${size}`);
-            for (const depth of config.PERFORMANCE_TEST_CONFIG.DEPTHS) {
-                const key = `${size}x${size}_d${depth}_ADVANCED`;
-                const result = this.results.alphaBeta[key];
-                if (result) {
-                    console.log(`\nProfondeur ${depth}:`);
-                    console.log(`- Temps moyen: ${result.executionTime.toFixed(2)}ms`);
-                    console.log(`- Nœuds explorés: ${result.nodesExplored}`);
-                    console.log(`- Taux de victoire: ${result.winRate.toFixed(1)}%`);
-                }
-            }
-        }
+        // 2. Rapport profondeurs
+        console.log("\n2. Impact de la profondeur:");
+        this.results.depthTests.forEach(result => {
+            console.log(`\nProfondeur ${result.depth}:`);
+            console.log(`- Taux de victoire: ${result.winRate.toFixed(1)}%`);
+            console.log(`- Temps moyen: ${result.avgTime.toFixed(2)}ms`);
+            console.log(`- Nœuds explorés: ${Math.round(result.avgNodes)}`);
+            console.log(`- Mémoire moyenne: ${(result.avgMemory/1024/1024).toFixed(2)}MB`);
+        });
 
-        // 3. Impact de l'heuristique
-        console.log('\n3. Impact de l\'Heuristique :');
-        for (const size of config.PERFORMANCE_TEST_CONFIG.BOARD_SIZES) {
-            for (const depth of config.PERFORMANCE_TEST_CONFIG.DEPTHS) {
-                console.log(`\nPlateau ${size}x${size}, Profondeur ${depth}:`);
-                
-                const basicKey = `${size}x${size}_d${depth}_BASIC`;
-                const advancedKey = `${size}x${size}_d${depth}_ADVANCED`;
-                
-                const basicResult = this.results.alphaBeta[basicKey];
-                const advancedResult = this.results.alphaBeta[advancedKey];
-                
-                if (basicResult && advancedResult) {
-                    console.log('Heuristique de Base :');
-                    console.log(`- Victoires: ${basicResult.winRate.toFixed(1)}%`);
-                    console.log(`- Temps: ${basicResult.executionTime.toFixed(2)}ms`);
-                    
-                    console.log('\nHeuristique Avancée :');
-                    console.log(`- Victoires: ${advancedResult.winRate.toFixed(1)}%`);
-                    console.log(`- Temps: ${advancedResult.executionTime.toFixed(2)}ms`);
-                }
-            }
-        }
+        // 3. Rapport algorithmes
+        console.log("\n3. MinMax vs Alpha-Beta:");
+        const [minmax, alphaBeta] = this.results.algorithmTests;
+        const speedup = (minmax.avgTime - alphaBeta.avgTime) / minmax.avgTime * 100;
+        console.log(`Gain en temps avec Alpha-Beta: ${speedup.toFixed(1)}%`);
+        console.log(`Réduction des nœuds: ${((1 - alphaBeta.avgNodes/minmax.avgNodes)*100).toFixed(1)}%`);
+        console.log(`Différence mémoire: ${((alphaBeta.avgMemory - minmax.avgMemory)/1024/1024).toFixed(2)}MB`);
+
+        // 4. Rapport tailles
+        console.log("\n4. Impact de la taille du plateau:");
+        this.results.gridSizeTests.forEach(result => {
+            console.log(`\nTaille ${result.size}x${result.size}:`);
+            console.log(`- Temps moyen: ${result.avgTime.toFixed(2)}ms`);
+            console.log(`- Mémoire moyenne: ${(result.avgMemory/1024/1024).toFixed(2)}MB`);
+            console.log(`- Nœuds explorés: ${Math.round(result.avgNodes)}`);
+        });
     }
 }
 
-module.exports = CheckersPerformanceTester;
+module.exports = CheckersPerformance;
