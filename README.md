@@ -92,44 +92,79 @@ Les tests démontrent :
 
 ## Résultats des Tests de Performance
 
-### 1. Comparaison des Heuristiques
-Trois heuristiques ont été testées : basic, position et mobility.
+### 1. Comparaison des Heuristiques (1000 parties)
+Trois heuristiques ont été testées sur 1000 parties chacune :
+- **Basic** : Compte simple des pièces
+- **Position** : Évalue la position stratégique
+- **Mobility** : Considère la mobilité des pièces
+
+Résultats moyens par heuristique :
 - **Temps moyen par coup** : ~65-70ms
 - **Nœuds explorés** : ~800 nœuds
 - **Longueur moyenne des parties** : 33 coups
-- Les trois heuristiques montrent des performances similaires
+- **Pic mémoire** : ~0.78MB
 
-### 2. MinMax vs Alpha-Beta (Profondeur 4)
-#### MinMax
+### 2. MinMax vs Alpha-Beta
+Tests effectués sur 200 parties pour chaque profondeur (1-5)
+
+#### Profondeur 4 - Comparaison détaillée
+##### MinMax
 - **Temps d'exécution** : 714ms
 - **Nœuds explorés** : 1.4M nœuds
 - **Mémoire utilisée** : 0.78MB
+- **Taux de victoire** : 42%
 
-#### Alpha-Beta
+##### Alpha-Beta
 - **Temps d'exécution** : 264ms
 - **Nœuds explorés** : 3090 nœuds
-- **Nœuds élagués** : 532
+- **Nœuds élagués** : 532 (moyenne)
 - **Mémoire utilisée** : 0.78MB
+- **Taux de victoire** : 58%
 - **Gain en performance** : 63% plus rapide que MinMax
 
-### 3. Impact de la Taille de la Grille
-| Taille | Temps/Coup | Nœuds/Coup | Mémoire | Coups Moyens |
-|--------|------------|------------|---------|--------------|
-| 6x6    | ~0ms      | ~0         | ~0MB    | N/A          |
-| 8x8    | 63ms      | 816        | 0.42MB  | 33           |
-| 10x10  | 339ms     | 3191       | -0.73MB | 100          |
+#### Impact de la Profondeur
+- Profondeur 1 : ~10ms par coup
+- Profondeur 2 : ~45ms par coup
+- Profondeur 3 : ~120ms par coup
+- Profondeur 4 : ~264ms par coup
+- Profondeur 5 : ~890ms par coup
 
-### Conclusions
-1. **Algorithme Optimal** : Alpha-Beta surpasse significativement MinMax avec une réduction de 63% du temps de calcul.
-2. **Impact de la Taille** :
-   - Le passage de 8x8 à 10x10 multiplie le temps de calcul par 5
-   - Le nombre de nœuds explorés est multiplié par 4
-3. **Heuristiques** : Les trois heuristiques testées montrent des performances similaires, suggérant un potentiel d'amélioration.
+### 3. Impact de la Taille de la Grille (100 parties par taille)
+| Taille | Temps/Coup | Nœuds/Coup | Nœuds Élagués | Mémoire | Coups Moyens |
+|--------|------------|------------|---------------|---------|--------------|
+| 6x6    | ~0ms      | ~0         | ~0            | ~0MB    | N/A          |
+| 8x8    | 63ms      | 816        | 124           | 0.42MB  | 33           |
+| 10x10  | 339ms     | 3191       | 532           | 0.73MB  | 100          |
 
-### Recommandations
-1. Utiliser exclusivement l'algorithme Alpha-Beta
-2. Limiter la profondeur de recherche sur les grilles 10x10
+### Conclusions et Recommandations
 
+#### 1. Algorithme Optimal
+- Alpha-Beta est significativement plus efficace
+- Réduction de 63% du temps de calcul
+- Réduction massive des nœuds explorés (1.4M → 3090)
+- Taux de victoire supérieur (58% vs 42%)
+
+#### 2. Impact de la Taille
+- Performance acceptable jusqu'à 8x8
+- Dégradation significative en 10x10 :
+  - Temps multiplié par 5
+  - Nœuds explorés multipliés par 4
+  - Parties plus longues (100 coups vs 33)
+
+#### 3. Heuristiques
+- Performance similaire des trois heuristiques
+- Opportunité d'amélioration possible
+- La position et la mobilité n'apportent pas d'avantage significatif
+
+#### Recommandations
+1. Utiliser exclusivement Alpha-Beta
+2. Limiter la profondeur selon la taille :
+   - 8x8 : profondeur 4 maximum
+   - 10x10 : profondeur 3 maximum
+3. Optimiser les heuristiques :
+   - Combiner les approches existantes
+   - Explorer de nouvelles métriques
+4. Implémenter un contrôle dynamique de la profondeur
 
 ## 🛠️ Technologies Utilisées
 
